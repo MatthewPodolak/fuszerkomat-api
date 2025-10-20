@@ -24,6 +24,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Folder Include="Assets\Images\Company\" />
+    <Folder Include="Assets\Images\Users\" />
     <Folder Include="Controllers\" />
   </ItemGroup>
 

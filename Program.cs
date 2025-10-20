@@ -3,6 +3,7 @@ using fuszerkomat_api.Data.Models;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Serilog;
@@ -58,7 +59,11 @@ builder.Services.AddAuthentication(o =>
     };
 });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("UserOnly", p => p.RequireClaim("account_type", "User"));
+    options.AddPolicy("CompanyOnly", p => p.RequireClaim("account_type", "Company"));
+});
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -106,6 +111,21 @@ builder.Host.UseSerilog();
 
 var app = builder.Build();
 
+static async Task SeedRolesAsync(IServiceProvider sp)
+{
+    var roleMgr = sp.GetRequiredService<RoleManager<IdentityRole>>();
+    string[] roles = ["User", "Company"];
+
+    foreach (var r in roles)
+        if (!await roleMgr.RoleExistsAsync(r))
+            await roleMgr.CreateAsync(new IdentityRole(r));
+}
+
+using (var scope = app.Services.CreateScope())
+{
+    await SeedRolesAsync(scope.ServiceProvider);
+}
+
 app.Use(async (ctx, next) =>
 {
     var traceId = ctx.TraceIdentifier;
@@ -131,5 +151,19 @@ app.UseSwaggerUI(o =>
     o.EnablePersistAuthorization();
 });
 app.MapControllers();
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(
+        Path.Combine(Directory.GetCurrentDirectory(), "Assets/Images/Company")),
+    RequestPath = "/company"
+});
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(
+        Path.Combine(Directory.GetCurrentDirectory(), "Assets/Images/Users")),
+    RequestPath = "/users"
+});
 
 app.Run();
