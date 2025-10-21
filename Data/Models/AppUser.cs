@@ -1,5 +1,5 @@
-﻿using Microsoft.AspNetCore.Identity;
-using System.ComponentModel.DataAnnotations;
+﻿using fuszerkomat_api.Data.Models.Token;
+using Microsoft.AspNetCore.Identity;
 
 namespace fuszerkomat_api.Data.Models
 {
@@ -11,6 +11,7 @@ namespace fuszerkomat_api.Data.Models
         public ICollection<Opinion> Opinions { get; set; } = new List<Opinion>();
         public ICollection<WorkTask> CreatedTasks { get; set; } = new List<WorkTask>();
         public ICollection<TaskApplication> CompanyApplications { get; set; } = new List<TaskApplication>();
+        public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
     }
 
     public enum AccountType

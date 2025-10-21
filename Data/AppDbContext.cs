@@ -1,4 +1,5 @@
 ﻿using fuszerkomat_api.Data.Models;
+using fuszerkomat_api.Data.Models.Token;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,6 +17,7 @@ namespace fuszerkomat_api.Data
         public DbSet<WorkTask> WorkTasks => Set<WorkTask>();
         public DbSet<TaskApplication> TaskApplications => Set<TaskApplication>();
         public DbSet<Tag> Tags => Set<Tag>();
+        public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<AppUser>()
@@ -71,6 +73,23 @@ namespace fuszerkomat_api.Data
                 .WithMany(u => u.CompanyApplications)
                 .HasForeignKey(a => a.CompanyUserId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<RefreshToken>()
+                .HasOne(r => r.User)
+                .WithMany(u => u.RefreshTokens)
+                .HasForeignKey(r => r.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<RefreshToken>()
+                .HasIndex(r => r.TokenHash)
+                .IsUnique();
+
+            modelBuilder.Entity<RefreshToken>()
+                .HasIndex(r => r.UserId);
+
+            modelBuilder.Entity<RefreshToken>()
+                .HasIndex(r => r.CreatedAtUtc);
+
 
 
             modelBuilder.Entity<TaskApplication>()
