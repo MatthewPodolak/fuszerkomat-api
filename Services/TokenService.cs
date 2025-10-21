@@ -41,12 +41,12 @@ namespace fuszerkomat_api.Services
                 var roles = await _userMgr.GetRolesAsync(user);
 
                 var claims = new List<Claim>
-            {
-                new(JwtRegisteredClaimNames.Sub, user.Id),
-                new(ClaimTypes.NameIdentifier, user.Id),
-                new(ClaimTypes.Name, user.UserName ?? user.Email ?? user.Id),
-                new("account_type", user.AccountType.ToString())
-            };
+                {
+                    new(JwtRegisteredClaimNames.Sub, user.Id),
+                    new(ClaimTypes.NameIdentifier, user.Id),
+                    new(ClaimTypes.Name, user.UserName ?? user.Email ?? user.Id),
+                    new("account_type", user.AccountType.ToString())
+                };
                 claims.AddRange(roles.Select(r => new Claim(ClaimTypes.Role, r)));
 
                 var accessMins = int.Parse(jwt["AccessTokenMinutes"] ?? "15");
