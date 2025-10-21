@@ -93,6 +93,7 @@ builder.Services.AddSwaggerGen(c =>
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddScoped<IAccountService, AccountService>();
 builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
 
 Log.Logger = new LoggerConfiguration()
