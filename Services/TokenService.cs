@@ -19,13 +19,15 @@ namespace fuszerkomat_api.Services
         private readonly IConfiguration _cfg;
         private readonly UserManager<AppUser> _userMgr;
         private readonly IRepository<RefreshToken> _rtRepo;
+        private readonly IUnitOfWork _uow;
         private readonly ILogger<ITokenService> _logger;
         private readonly IHttpContextAccessor _http;
-        public TokenService(IConfiguration cfg, UserManager<AppUser> userMgr, IRepository<RefreshToken> rtRepo, ILogger<ITokenService> logger, IHttpContextAccessor http)
+        public TokenService(IConfiguration cfg, UserManager<AppUser> userMgr, IRepository<RefreshToken> rtRepo, IUnitOfWork uow, ILogger<ITokenService> logger, IHttpContextAccessor http)
         {
             _cfg = cfg;
             _userMgr = userMgr;
             _rtRepo = rtRepo;
+            _uow = uow;
             _logger = logger;
             _http = http;
         }
@@ -76,7 +78,7 @@ namespace fuszerkomat_api.Services
                     UserAgent = userAgent
                 }, ct);
 
-                await _rtRepo.SaveChangesAsync(ct);
+                await _uow.SaveChangesAsync(ct);
 
                 var res = new AuthTokenVMO
                 {
@@ -143,7 +145,7 @@ namespace fuszerkomat_api.Services
                     UserAgent = userAgent
                 }, ct);
 
-                await _rtRepo.SaveChangesAsync(ct);
+                await _uow.SaveChangesAsync(ct);
 
                 var created = await CreateTokensAsync(existing.User, ip, userAgent, ct);
 
@@ -183,7 +185,7 @@ namespace fuszerkomat_api.Services
                     r.RevokedByIp = ip;
                 }, ct);
 
-                await _rtRepo.SaveChangesAsync(ct);
+                await _uow.SaveChangesAsync(ct);
             }
             catch (OperationCanceledException ex)
             {

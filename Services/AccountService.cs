@@ -11,11 +11,13 @@ namespace fuszerkomat_api.Services
     public class AccountService : IAccountService
     {
         private readonly IRepository<AppUser> _userRepo;
+        private readonly IUnitOfWork _uow;
         private readonly ILogger<IAccountService> _logger;
         private readonly IHttpContextAccessor _http;
-        public AccountService(IRepository<AppUser> userRepo, ILogger<IAccountService> logger, IHttpContextAccessor http)
+        public AccountService(IRepository<AppUser> userRepo, IUnitOfWork uow, ILogger<IAccountService> logger, IHttpContextAccessor http)
         {
             _userRepo = userRepo;
+            _uow = uow;
             _logger = logger;
             _http = http;
         }
@@ -76,7 +78,7 @@ namespace fuszerkomat_api.Services
                     user.CompanyProfile = newCompanyInfo;
 
                 _userRepo.Update(user);
-                await _userRepo.SaveChangesAsync(ct);
+                await _uow.SaveChangesAsync(ct);
 
                 return Result.Ok(null, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
             }
@@ -127,7 +129,7 @@ namespace fuszerkomat_api.Services
                     user.UserProfile = profile;
 
                 _userRepo.Update(user);
-                await _userRepo.SaveChangesAsync(ct);
+                await _uow.SaveChangesAsync(ct);
 
                 return Result.Ok(null, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
             }

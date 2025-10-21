@@ -1,6 +1,7 @@
 ﻿using fuszerkomat_api.Data;
 using fuszerkomat_api.Data.Models;
 using fuszerkomat_api.Interfaces;
+using fuszerkomat_api.Repo;
 using fuszerkomat_api.VM;
 using fuszerkomat_api.VMO;
 using Microsoft.AspNetCore.Identity;
@@ -14,14 +15,16 @@ namespace fuszerkomat_api.Services
         private readonly UserManager<AppUser> _userMgr;
         private readonly SignInManager<AppUser> _signInMgr;
         private readonly ITokenService _tokens;
+        private readonly IUnitOfWork _uow;
 
         private readonly ILogger<IAuthService> _logger;
         private readonly IHttpContextAccessor _http;
-        public AuthService(UserManager<AppUser> userMgr, SignInManager<AppUser> signInMgr, ITokenService tokens, ILogger<IAuthService> logger, IHttpContextAccessor http)
+        public AuthService(UserManager<AppUser> userMgr, SignInManager<AppUser> signInMgr, ITokenService tokens, IUnitOfWork uow, ILogger<IAuthService> logger, IHttpContextAccessor http)
         {
             _userMgr = userMgr;
             _signInMgr = signInMgr;
             _tokens = tokens;
+            _uow = uow;
             _logger = logger;
             _http = http;
         }
@@ -156,24 +159,25 @@ namespace fuszerkomat_api.Services
                         return Result<AuthTokenVMO>.Internal(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
                 }
 
-                var create = await _userMgr.CreateAsync(user, model.Password);
-                if (!create.Succeeded)
+                Result<AuthTokenVMO>? final = null;
+
+                await _uow.ExecuteInTransactionAsync(async innerCt =>
                 {
-                    var errs = create.Errors.Select(e => Error.Validation(e.Description)).ToList();
-                    return Result<AuthTokenVMO>.BadRequest(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty, errors: errs);
-                }
+                    var create = await _userMgr.CreateAsync(user, model.Password);
+                    if (!create.Succeeded)
+                        throw new InvalidOperationException(string.Join(" | ", create.Errors.Select(e => e.Description)));
 
-                var addRole = await _userMgr.AddToRoleAsync(user, role);
-                if (!addRole.Succeeded)
-                {
-                    var errs = addRole.Errors.Select(e => Error.Internal(e.Description)).ToList();
-                    return Result<AuthTokenVMO>.Internal(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty, errors: errs);
-                }
+                    var addRole = await _userMgr.AddToRoleAsync(user, role);
+                    if (!addRole.Succeeded)
+                        throw new InvalidOperationException(string.Join(" | ", addRole.Errors.Select(e => e.Description)));
 
-                var ip = _http.HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-                var ua = _http.HttpContext?.Request.Headers.UserAgent.ToString();
+                    var ip = _http.HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                    var ua = _http.HttpContext?.Request.Headers.UserAgent.ToString();
+                    final = await _tokens.CreateTokensAsync(user, ip, ua, innerCt);
 
-                return await _tokens.CreateTokensAsync(user, ip, ua, ct);
+                }, ct);
+
+                return final!;
             }
             catch(OperationCanceledException ex)
             {

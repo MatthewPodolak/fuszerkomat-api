@@ -9,6 +9,5 @@
         void Update(T entity);
         void Add(T entity);
         void Delete(T entity);
-        Task<int> SaveChangesAsync(CancellationToken ct = default);
     }
 }

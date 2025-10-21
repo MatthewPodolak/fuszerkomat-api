@@ -47,10 +47,5 @@ namespace fuszerkomat_api.Repo
         {
             await _set.AddRangeAsync(entities, ct);
         }
-
-        public async Task<int> SaveChangesAsync(CancellationToken ct = default)
-        {
-            return await _context.SaveChangesAsync(ct);
-        }
     }
 }
