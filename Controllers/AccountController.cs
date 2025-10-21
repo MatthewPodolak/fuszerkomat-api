@@ -17,7 +17,7 @@ namespace fuszerkomat_api.Controllers
             _accountService = accountService;
         }
 
-        [HttpPatch]
+        [HttpPatch("/ProfileInfromation")]
         [Authorize]
         [ProducesResponseType(typeof(Result), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(Result), StatusCodes.Status400BadRequest)]
