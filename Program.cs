@@ -1,5 +1,8 @@
 using fuszerkomat_api.Data;
 using fuszerkomat_api.Data.Models;
+using fuszerkomat_api.Interfaces;
+using fuszerkomat_api.Repo;
+using fuszerkomat_api.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -88,6 +91,9 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
