@@ -161,8 +161,22 @@ app.MapControllers();
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(
-        Path.Combine(Directory.GetCurrentDirectory(), "Assets/Images/Company")),
-    RequestPath = "/company"
+        Path.Combine(Directory.GetCurrentDirectory(), "Assets/Images/Company/Profile")),
+    RequestPath = "/company/profiles"
+});
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(
+        Path.Combine(Directory.GetCurrentDirectory(), "Assets/Images/Company/Backgrounds")),
+    RequestPath = "/company/backgrounds"
+});
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(
+        Path.Combine(Directory.GetCurrentDirectory(), "Assets/Images/Company/Realizations")),
+    RequestPath = "/company/realizations"
 });
 
 app.UseStaticFiles(new StaticFileOptions
