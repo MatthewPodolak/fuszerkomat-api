@@ -80,6 +80,14 @@ namespace fuszerkomat_api.Data
                 .HasForeignKey(r => r.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            modelBuilder.Entity<CompanyProfile>()
+                .HasMany(c => c.Realizations)
+                .WithOne(r => r.CompanyProfile)
+                .HasForeignKey(r => r.CompanyProfileId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+
+
             modelBuilder.Entity<RefreshToken>()
                 .HasIndex(r => r.TokenHash)
                 .IsUnique();
@@ -89,8 +97,6 @@ namespace fuszerkomat_api.Data
 
             modelBuilder.Entity<RefreshToken>()
                 .HasIndex(r => r.CreatedAtUtc);
-
-
 
             modelBuilder.Entity<TaskApplication>()
                 .HasIndex(a => new { a.WorkTaskId, a.CompanyUserId })
