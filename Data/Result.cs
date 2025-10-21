@@ -30,6 +30,9 @@ namespace fuszerkomat_api.Data
 
         public static Result Internal(List<Error>? errors, string traceId)
             => new() { Errors = errors ?? new List<Error> { Error.Internal() }, Success = false, Status = (int)HttpStatusCode.InternalServerError, TraceId = traceId };
+    
+        public static Result Canceled(List<Error>? errors, string traceId)
+            => new() { Errors = errors ?? new List<Error> { Error.Canceled() }, Success = false, Status = 499, TraceId = traceId };
     }
 
     public class Result<T> : Result
@@ -45,6 +48,9 @@ namespace fuszerkomat_api.Data
 
         public static Result<T> NotFound(string traceId, T? data = default, Pagination? pagination = null, List<Error>? errors = null)
             => new Result<T>() { Data = data, Pagination = pagination, Status = (int)HttpStatusCode.NotFound, Success = false, TraceId = traceId, Errors = errors ?? new List<Error>() { Error.NotFound() } };
+
+        public static Result<T> Conflict(string traceId, T? data = default, Pagination? pagination = null, List<Error>? errors = null)
+            => new Result<T> { Data = data, Pagination = pagination, Status = (int)HttpStatusCode.Conflict, Success = false, TraceId = traceId, Errors = errors };
 
         public static Result<T> Internal(string traceId, T? data = default, Pagination? pagination = null, List<Error>? errors = null)
             => new Result<T>() { Data = data, Pagination = pagination, Status = (int)HttpStatusCode.InternalServerError, Success = false, TraceId = traceId, Errors = errors ?? new List<Error>() { Error.Internal() } };

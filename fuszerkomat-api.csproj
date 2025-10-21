@@ -28,7 +28,6 @@
     <Folder Include="Assets\Images\Company\Profile\" />
     <Folder Include="Assets\Images\Company\Realizations\" />
     <Folder Include="Assets\Images\Users\" />
-    <Folder Include="Controllers\" />
   </ItemGroup>
 
 </Project>
