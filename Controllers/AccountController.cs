@@ -50,5 +50,23 @@ namespace fuszerkomat_api.Controllers
 
             return StatusCode(res.Status, res);
         }
+
+        [HttpDelete("DeleteAccount")]
+        [Authorize]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> DeleteAccount(CancellationToken ct)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (String.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(Result.Unauthorized(null, traceId: HttpContext.TraceIdentifier));
+            }
+
+            var res = await _accountService.DeleteAccount(userId, ct);
+            return StatusCode(res.Status, res);
+        }
     }
 }

@@ -7,5 +7,6 @@ namespace fuszerkomat_api.Interfaces
     {
         Task<Result> UpdateCompanyInfrormation(string userId, CompanyProfileInfoVM model, CancellationToken ct);
         Task<Result> UpdateUserInformation(string userId, UserProfileInfoVM model, CancellationToken ct);
+        Task<Result> DeleteAccount(string userId, CancellationToken ct);
     }
 }
