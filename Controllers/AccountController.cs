@@ -37,7 +37,7 @@ namespace fuszerkomat_api.Controllers
             return StatusCode(res.Status, res);
         }
 
-        [HttpPatch("/ProfileInfromation")]
+        [HttpPatch("profile-informaion")]
         [Authorize]
         [ProducesResponseType(typeof(Result), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(Result), StatusCodes.Status400BadRequest)]
@@ -71,7 +71,7 @@ namespace fuszerkomat_api.Controllers
             return StatusCode(res.Status, res);
         }
 
-        [HttpDelete("DeleteAccount")]
+        [HttpDelete("delete-account")]
         [Authorize]
         [ProducesResponseType(typeof(Result), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(Result), StatusCodes.Status400BadRequest)]
