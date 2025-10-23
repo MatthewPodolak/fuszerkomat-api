@@ -13,10 +13,10 @@ namespace fuszerkomat_api.VMO
         public int Applicants { get; set; }
         public Location? Location { get; set; }
 
-        public WorkTaskRequestingUserDataVMO WorkTaskRequestingUserData { get; set; }
+        public WorkTaskRequestingUserDataPreviewVMO WorkTaskRequestingUserData { get; set; }
     }
 
-    public class WorkTaskRequestingUserDataVMO
+    public class WorkTaskRequestingUserDataPreviewVMO
     {
         public string Name { get; set; }
         public string Pfp { get; set; }
