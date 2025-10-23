@@ -37,7 +37,7 @@ namespace fuszerkomat_api.Services
         {
             try
             {
-                var user = await _userRepo.GetByIdAsync(userId);
+                var user = await _userRepo.GetByIdAsync(userId, ct);
                 if (user == null)
                 {
                     _logger.LogInformation("PublishAsync couldnt find user with given id. Path={Path} Method={Method} UserId={UserId}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method, userId);
@@ -188,7 +188,7 @@ namespace fuszerkomat_api.Services
                     Applicants = a.Applications.Count,
                     ReamainingDays = Convert.ToInt16((a.ExpiresAt - DateTime.Now).TotalDays),
                     Location = new Location() { Latitude = a.Lattitude, Longtitude = a.Longttitude, Name = a.Location },
-                    WorkTaskRequestingUserData = new WorkTaskRequestingUserDataVMO() { Name = a.CreatedByUser.UserProfile.Name, Pfp = a.CreatedByUser.UserProfile.Img },
+                    WorkTaskRequestingUserData = new WorkTaskRequestingUserDataPreviewVMO() { Name = a.CreatedByUser.UserProfile.Name, Pfp = a.CreatedByUser.UserProfile.Img },
                 })
                 .ToListAsync(ct);
 
@@ -212,6 +212,136 @@ namespace fuszerkomat_api.Services
             {
                 _logger.LogError(ex, "GetWorkTasksAsync unexpected error. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
                 return Result<List<WorkTaskPreviewVMO>>.Internal(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+            }
+        }
+
+        public async Task<Result<UserWorkTaskVMO>> GetWorkTaskForUserAsync(int id, string userId, CancellationToken ct)
+        {
+            try
+            {
+                var workTask = await _workTaskRepo.Query()
+                            .AsNoTracking()
+                            .Include(a => a.CreatedByUser).ThenInclude(u => u.UserProfile)
+                            .Include(a => a.Applications).ThenInclude(ap => ap.CompanyUser).ThenInclude(cu => cu.CompanyProfile)
+                            .Include(a => a.Category)
+                            .Include(a => a.Tags)
+                            .Include(a => a.Images)
+                            .FirstOrDefaultAsync(a => a.Id == id, ct);
+
+                if (workTask == null)
+                {
+                    _logger.LogWarning("GetWorkTaskForUserAsync tried to acess non existing worktask. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
+                    return Result<UserWorkTaskVMO>.NotFound(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+                }
+
+                var vmo = new UserWorkTaskVMO
+                {
+                    Id = workTask.Id,
+                    CreatedAt = workTask.CreatedAt,
+                    ExpiresAt = workTask.ExpiresAt,
+                    Desc = workTask.Desc,
+                    MaxPrice = workTask.MaxPrice,
+                    Name = workTask.Name,
+                    ExpectedRealisationTime = workTask.ExpectedRealisationTime,
+                    Own = workTask.CreatedByUserId == userId,
+                    RequestingUserDataVMO = new WorkTaskRequestingUserDataVMO
+                    {
+                        Name = workTask.CreatedByUser.UserProfile?.Name,
+                        Email = workTask.CreatedByUser.UserProfile?.Email,
+                        Phone = workTask.CreatedByUser.UserProfile?.PhoneNumber ?? string.Empty,
+                        Pfp = workTask.CreatedByUser.UserProfile?.Img
+                    },
+                    Applicants = workTask.Applications.Select(a => new ApplicantDataVMO
+                    {
+                        Id = a.CompanyUser.Id,
+                        Name = a.CompanyUser.CompanyProfile.CompanyName,
+                        Pfp = a.CompanyUser.CompanyProfile.Img
+                    }).ToList(),
+                    Images = workTask.Images.Any() ? workTask.Images.Select(i => i.Img).ToList() : new List<string>(),
+                    Location = new Location
+                    {
+                        Name = workTask.Location,
+                        Latitude = workTask.Lattitude,
+                        Longtitude = workTask.Longttitude
+                    }
+                };
+
+                return Result<UserWorkTaskVMO>.Ok(data: vmo, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+            }
+            catch (OperationCanceledException ex)
+            {
+                _logger.LogWarning(ex, "GetWorkTaskForUserAsync was canceled. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
+                return Result<UserWorkTaskVMO>.Canceled(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "GetWorkTaskForUserAsync unexpected error. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
+                return Result<UserWorkTaskVMO>.Internal(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+            }
+        }
+
+        public async Task<Result<CompanyWorkTaskVMO>> GetWorkTaskForCompanyAsync(int id, string userId, CancellationToken ct)
+        {
+            try
+            {
+                var workTask = await _workTaskRepo.Query()
+                            .AsNoTracking()
+                            .Include(a => a.CreatedByUser).ThenInclude(u => u.UserProfile)
+                            .Include(a => a.Applications).ThenInclude(ap => ap.CompanyUser).ThenInclude(cu => cu.CompanyProfile)
+                            .Include(a => a.Category)
+                            .Include(a => a.Tags)
+                            .Include(a => a.Images)
+                            .FirstOrDefaultAsync(a => a.Id == id, ct);
+
+                if (workTask == null)
+                {
+                    _logger.LogWarning("GetWorkTaskForCompanyAsync tried to acess non existing worktask. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
+                    return Result<CompanyWorkTaskVMO>.NotFound(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+                }
+
+                var vmo = new CompanyWorkTaskVMO
+                {
+                    Id = workTask.Id,
+                    CreatedAt = workTask.CreatedAt,
+                    ExpiresAt = workTask.ExpiresAt,
+                    Desc = workTask.Desc,
+                    MaxPrice = workTask.MaxPrice,
+                    Name = workTask.Name,
+                    ExpectedRealisationTime = workTask.ExpectedRealisationTime,
+                    Aplicated = workTask.Applications.Any(a => a.CompanyUserId == userId),
+                    RequestingUserDataVMO = new WorkTaskRequestingUserDataVMO
+                    {
+                        Name = workTask.CreatedByUser.UserProfile?.Name,
+                        Email = workTask.CreatedByUser.UserProfile?.Email,
+                        Phone = workTask.CreatedByUser.UserProfile?.PhoneNumber ?? string.Empty,
+                        Pfp = workTask.CreatedByUser.UserProfile?.Img
+                    },
+                    Applicants = workTask.Applications.Select(a => new ApplicantDataVMO
+                    {
+                        Id = a.CompanyUser.Id,
+                        Name = a.CompanyUser.CompanyProfile.CompanyName,
+                        Pfp = a.CompanyUser.CompanyProfile.Img
+                    }).ToList(),
+                    Images = workTask.Images.Any() ? workTask.Images.Select(i => i.Img).ToList() : new List<string>(),
+                    Location = new Location
+                    {
+                        Name = workTask.Location,
+                        Latitude = workTask.Lattitude,
+                        Longtitude = workTask.Longttitude
+                    }
+                };
+
+                return Result<CompanyWorkTaskVMO>.Ok(data: vmo, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+            }
+            catch (OperationCanceledException ex)
+            {
+                _logger.LogWarning(ex, "GetWorkTaskForCompanyAsync was canceled. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
+                return Result<CompanyWorkTaskVMO>.Canceled(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "GetWorkTaskForCompanyAsync unexpected error. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
+                return Result<CompanyWorkTaskVMO>.Internal(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
             }
         }
     }

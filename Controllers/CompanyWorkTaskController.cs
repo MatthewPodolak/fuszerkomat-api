@@ -4,6 +4,7 @@ using fuszerkomat_api.VM;
 using fuszerkomat_api.VMO;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace fuszerkomat_api.Controllers
 {
@@ -32,6 +33,25 @@ namespace fuszerkomat_api.Controllers
             }
 
             var res = await _workTaskService.GetWorkTasksAsync(model, ct);
+            return StatusCode(res.Status, res);
+        }
+        
+        [HttpGet("get-by-id")]
+        [Authorize(Policy = "CompanyOnly")]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> GetById([FromQuery] int id, CancellationToken ct)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (String.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(Result.Unauthorized(null, traceId: HttpContext.TraceIdentifier));
+            }
+
+            var res = await _workTaskService.GetWorkTaskForCompanyAsync(id, userId, ct);
             return StatusCode(res.Status, res);
         }
     }
