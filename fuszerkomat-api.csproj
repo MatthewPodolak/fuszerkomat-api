@@ -27,6 +27,7 @@
     <Folder Include="Assets\Images\Company\Backgrounds\" />
     <Folder Include="Assets\Images\Company\Profile\" />
     <Folder Include="Assets\Images\Company\Realizations\" />
+    <Folder Include="Assets\Images\WorkTasks\" />
     <Folder Include="Assets\Images\Users\" />
   </ItemGroup>
 
