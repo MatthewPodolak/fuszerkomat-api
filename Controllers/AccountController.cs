@@ -1,6 +1,8 @@
 ﻿using fuszerkomat_api.Data;
+using fuszerkomat_api.Data.Models;
 using fuszerkomat_api.Interfaces;
 using fuszerkomat_api.VM;
+using fuszerkomat_api.VMO;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -15,6 +17,24 @@ namespace fuszerkomat_api.Controllers
         public AccountController(IAccountService accountService)
         {
             _accountService = accountService;
+        }
+
+        [HttpGet("get-company-profile")]
+        [Authorize]
+        [ProducesResponseType(typeof(Result<CompanyProfileVMO>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(Result<CompanyProfileVMO>), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(Result<CompanyProfileVMO>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(Result<CompanyProfileVMO>), StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> GetCompanyProfile([FromQuery] string id, CancellationToken ct)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (String.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(Result.Unauthorized(null, traceId: HttpContext.TraceIdentifier));
+            }
+
+            var res = await _accountService.GetCompanyProfileAsync(id, ct);
+            return StatusCode(res.Status, res);
         }
 
         [HttpPatch("/ProfileInfromation")]

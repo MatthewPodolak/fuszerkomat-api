@@ -4,6 +4,8 @@ using fuszerkomat_api.Helpers;
 using fuszerkomat_api.Interfaces;
 using fuszerkomat_api.Repo;
 using fuszerkomat_api.VM;
+using fuszerkomat_api.VMO;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 
 namespace fuszerkomat_api.Services
@@ -40,6 +42,69 @@ namespace fuszerkomat_api.Services
             _http = http;
         }
 
+        public async Task<Result<CompanyProfileVMO>> GetCompanyProfileAsync(string id, CancellationToken ct)
+        {
+            try
+            {
+                var companyData = await _userRepo.Query().AsNoTracking()
+                    .Include(u => u.CompanyProfile)
+                        .ThenInclude(cp => cp.Opinions).ThenInclude(cpo => cpo.AuthorUser).ThenInclude(cpop => cpop.UserProfile)
+                    .Include(u => u.CompanyProfile)
+                        .ThenInclude(cp => cp.Realizations).FirstOrDefaultAsync(u => u.Id == id, ct);
+
+                if(companyData == null)
+                {
+                    _logger.LogWarning("GetCompanyProfileAsync couldnt find user with given id. Id={Id} Path={Path}, Method={Method}",id, _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
+                    return Result<CompanyProfileVMO>.NotFound(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+                }
+
+                var vmo = new CompanyProfileVMO()
+                {
+                    Desc = companyData.CompanyProfile.Desc,
+                    CompanyName = companyData.CompanyProfile.CompanyName,
+                    Email = companyData.CompanyProfile.Email,
+                    Img = companyData.CompanyProfile.Img,
+                    Nip = companyData.CompanyProfile.Nip,
+                    BackgroundImg = companyData.CompanyProfile.BackgroundImg,
+                    PhoneNumber = companyData.CompanyProfile.PhoneNumber,
+                    Adress = new AdressVMO()
+                    {
+                        City = companyData.CompanyProfile.Address.City,
+                        Country = companyData.CompanyProfile.Address.Country,
+                        Street = companyData.CompanyProfile.Address.Street,
+                        Lattitude = companyData.CompanyProfile.Address.Lattitude,
+                        Longtitude = companyData.CompanyProfile.Address.Lattitude,
+                        PostalCode = companyData.CompanyProfile.Address.PostalCode
+                    },
+                    Opinions = companyData.Opinions.Select(a=> new OpinionVMO()
+                    {
+                        Comment = a.Comment,
+                        CreatedAt = a.CreatedAt,
+                        CreatedByName = a.AuthorUser.UserProfile.Name,
+                        Rating = a.Rating
+                    }).ToList(),
+                    Realizations = companyData.CompanyProfile.Realizations.Select(a=> new RealizationVMO() 
+                    { 
+                        Date = a.Date,
+                        Desc = a.Desc,
+                        Img = a.Img,
+                        Localization = a.Localization,
+                    }).ToList()
+                };
+
+                return Result<CompanyProfileVMO>.Ok(data: vmo, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+            }
+            catch (OperationCanceledException ex)
+            {
+                _logger.LogWarning(ex, "GetCompanyProfileAsync was canceled. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
+                return Result<CompanyProfileVMO>.Canceled(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "GetCompanyProfileAsync unexpected error. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
+                return Result<CompanyProfileVMO>.Internal(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+            }
+        }
         public async Task<Result> UpdateCompanyInfrormation(string userId, CompanyProfileInfoVM model, CancellationToken ct)
         {
             try
@@ -252,6 +317,5 @@ namespace fuszerkomat_api.Services
                 return Result.Internal(null, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
             }
         }
-
     }
 }
