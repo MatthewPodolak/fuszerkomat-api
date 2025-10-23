@@ -14,6 +14,8 @@ namespace fuszerkomat_api.Data.Models
         public DateTime ExpiresAt { get; set; } = DateTime.Now.AddDays(31);
         public RealisationTime ExpectedRealisationTime { get; set; }
         public string Location { get; set; }
+        public double Lattitude { get; set; }
+        public double Longttitude { get; set; }
         public Status Status { get; set; }
 
         public string CreatedByUserId { get; set; } = default!;

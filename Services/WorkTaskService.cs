@@ -4,6 +4,10 @@ using fuszerkomat_api.Helpers;
 using fuszerkomat_api.Interfaces;
 using fuszerkomat_api.Repo;
 using fuszerkomat_api.VM;
+using fuszerkomat_api.VMO;
+using Microsoft.EntityFrameworkCore;
+using System.Drawing;
+using System.Linq;
 
 namespace fuszerkomat_api.Services
 {
@@ -68,28 +72,40 @@ namespace fuszerkomat_api.Services
                     Desc = model.Desc,
                     ExpectedRealisationTime = model.ExpectedRealisationTime,
                     Status = Status.Open,
-                    Location = model.Location ?? "Polska",
                     MaxPrice = model.MaxPrice,
                     Category = category,
                     CategoryId = category.Id,
                     Tags = tags,
                 };
 
-                foreach(var img in model.Images)
+                if(model.Location != null)
                 {
-                    string path = await PhotoSaver.SavePhotoAsync
-                        (
-                            img,
-                            physicalFolder: Path.Combine("Assets", "Images", "WorkTasks"),
-                            requestPathPrefix: "/tasks",
-                            ct
-                        );
-
-                    newWorkTask.Images.Add(new WorkTaskGallery
-                    {
-                        Img = path
-                    });
+                    newWorkTask.Lattitude = model.Location.Latitude;
+                    newWorkTask.Longttitude = model.Location.Longtitude;
+                    newWorkTask.Location = model.Location.Name ?? string.Empty;
                 }
+                else
+                {
+                    newWorkTask.Location = "Polska";
+                    newWorkTask.Lattitude = 0;
+                    newWorkTask.Longttitude = 0;
+                }
+
+                    foreach (var img in model.Images)
+                    {
+                        string path = await PhotoSaver.SavePhotoAsync
+                            (
+                                img,
+                                physicalFolder: Path.Combine("Assets", "Images", "WorkTasks"),
+                                requestPathPrefix: "/tasks",
+                                ct
+                            );
+
+                        newWorkTask.Images.Add(new WorkTaskGallery
+                        {
+                            Img = path
+                        });
+                    }
 
                 await _workTaskRepo.AddAsync(newWorkTask, ct);
                 await _uow.SaveChangesAsync(ct);
@@ -105,6 +121,97 @@ namespace fuszerkomat_api.Services
             {
                 _logger.LogError(ex, "PublishAsync unexpected error. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
                 return Result.Internal(null, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+            }
+        }
+
+        public async Task<Result<List<WorkTaskPreviewVMO>>> GetWorkTasksAsync(WorkTaskFilterVM filter, CancellationToken ct)
+        {
+            try
+            {
+                var query = _workTaskRepo.Query();
+
+                if (filter.Tags != null && filter.Tags.Any())
+                {
+                    var tagSet = filter.Tags.ToHashSet();
+                    query = query.Where(a => a.Tags.Any(t => tagSet.Contains(t.TagType)));
+                }
+
+                if (filter.CategoryType != null)
+                {
+                    query.Where(a => a.Category.CategoryType == filter.CategoryType);
+                }
+
+                query = query.Include(a => a.Tags).Include(a => a.Category).Include(a=>a.CreatedByUser).ThenInclude(a=>a.UserProfile);
+
+                if (!String.IsNullOrEmpty(filter.KeyWords))
+                {
+                    query.Where(a => a.Desc!.Contains(filter.KeyWords) || a.Name.Contains(filter.KeyWords));
+                }
+
+                if(filter.Location != null)
+                {
+                    query.Where(w => GeoUtils.DistanceKm(filter.Location.Latitude, filter.Location.Longtitude, w.Lattitude, w.Longttitude) <= filter.Location.Range);
+                }
+
+                var totalCount = await query.CountAsync(ct);
+
+                //TODO add nearest (loc.) sort.
+                switch (filter.SortOptions)
+                {
+                    case SortOptions.LowestApplicants:
+                        query = query.OrderBy(a => a.Applications.Count);
+                        break;
+
+                    case SortOptions.MaxPriceAsc:
+                        query = query.OrderBy(a => a.MaxPrice);
+                        break;
+
+                    case SortOptions.MaxPriceDesc:
+                        query = query.OrderByDescending(a => a.MaxPrice);
+                        break;
+
+                    case SortOptions.DeadlineAsc:
+                        query = query.OrderBy(a => a.ExpiresAt);
+                        break;
+
+                    case SortOptions.DeadlineDesc:
+                        query = query.OrderByDescending(a => a.ExpiresAt);
+                        break;
+                }
+
+
+                var res = await query.Skip((filter.PageSize * (filter.Page - 1))).Take(filter.PageSize).Select(a => new WorkTaskPreviewVMO
+                {
+                    Desc = a.Desc,
+                    MaxPrice = a.MaxPrice,
+                    Name = a.Name,
+                    Applicants = a.Applications.Count,
+                    ReamainingDays = Convert.ToInt16((a.ExpiresAt - DateTime.Now).TotalDays),
+                    Location = new Location() { Latitude = a.Lattitude, Longtitude = a.Longttitude, Name = a.Location },
+                    WorkTaskRequestingUserData = new WorkTaskRequestingUserDataVMO() { Name = a.CreatedByUser.UserProfile.Name, Pfp = a.CreatedByUser.UserProfile.Img },
+                })
+                .ToListAsync(ct);
+
+                var pageCount = (int)Math.Ceiling((double)totalCount / filter.PageSize);
+                var pagination = new Pagination
+                {
+                    Count = res.Count,
+                    CurrentPage = filter.Page,
+                    PageCount = pageCount,
+                    TotalCount = totalCount
+                };
+
+                return Result<List<WorkTaskPreviewVMO>>.Ok(data: res, pagination: pagination, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+            }
+            catch (OperationCanceledException ex)
+            {
+                _logger.LogWarning(ex, "GetWorkTasksAsync was canceled. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
+                return Result<List<WorkTaskPreviewVMO>>.Canceled(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "GetWorkTasksAsync unexpected error. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
+                return Result<List<WorkTaskPreviewVMO>>.Internal(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
             }
         }
     }
