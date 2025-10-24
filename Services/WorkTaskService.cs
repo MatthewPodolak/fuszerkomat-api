@@ -8,8 +8,6 @@ using fuszerkomat_api.VM;
 using fuszerkomat_api.VMO;
 using Grpc.Core;
 using Microsoft.EntityFrameworkCore;
-using System.Drawing;
-using System.Linq;
 
 namespace fuszerkomat_api.Services
 {
