@@ -18,6 +18,44 @@ namespace fuszerkomat_api.Controllers
             _workTaskService = workTaskService;
         }
 
+        [HttpGet("get-by-id")]
+        [Authorize(Policy = "UserOnly")]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> GetById([FromQuery] int id, CancellationToken ct)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (String.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(Result.Unauthorized(null, traceId: HttpContext.TraceIdentifier));
+            }
+
+            var res = await _workTaskService.GetWorkTaskForUserAsync(id, userId, ct);
+            return StatusCode(res.Status, res);
+        }
+
+        [HttpGet("get-own")]
+        [Authorize(Policy = "UserOnly")]
+        [ProducesResponseType(typeof(Result<List<UserWorkTaskPreviewVMO>>), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(Result<List<UserWorkTaskPreviewVMO>>), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(Result<List<UserWorkTaskPreviewVMO>>), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(Result<List<UserWorkTaskPreviewVMO>>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(Result<List<UserWorkTaskPreviewVMO>>), StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> GetOwn([FromQuery] OwnWorkTasksFilterVM filters, CancellationToken ct)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (String.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(Result<List<UserWorkTaskPreviewVMO>>.Unauthorized(null, traceId: HttpContext.TraceIdentifier));
+            }
+
+            var res = await _workTaskService.GetOwnAsync(filters, userId, ct);
+            return StatusCode(res.Status, res);
+        }
+
         [HttpPost("publish")]
         [Authorize(Policy = "UserOnly")]
         [ProducesResponseType(typeof(Result), StatusCodes.Status200OK)]
@@ -39,25 +77,6 @@ namespace fuszerkomat_api.Controllers
             }
 
             var res = await _workTaskService.PublishAsync(model, userId, ct);
-            return StatusCode(res.Status, res);
-        }
-
-        [HttpGet("get-by-id")]
-        [Authorize(Policy = "UserOnly")]
-        [ProducesResponseType(typeof(Result), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(Result), StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(typeof(Result), StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(typeof(Result), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(Result), StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> GetById([FromQuery] int id, CancellationToken ct)
-        {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (String.IsNullOrEmpty(userId))
-            {
-                return Unauthorized(Result.Unauthorized(null, traceId: HttpContext.TraceIdentifier));
-            }
-
-            var res = await _workTaskService.GetWorkTaskForUserAsync(id, userId, ct);
             return StatusCode(res.Status, res);
         }
     }

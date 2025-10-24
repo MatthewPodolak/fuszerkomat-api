@@ -7,7 +7,9 @@ using fuszerkomat_api.Repo;
 using fuszerkomat_api.VM;
 using fuszerkomat_api.VMO;
 using Grpc.Core;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
+using System.Collections.Generic;
 
 namespace fuszerkomat_api.Services
 {
@@ -130,7 +132,7 @@ namespace fuszerkomat_api.Services
         {
             try
             {
-                var query = _workTaskRepo.Query();
+                var query = _workTaskRepo.Query().Where(a=>a.Status == Data.Models.Status.Open);
 
                 if (filter.Tags != null && filter.Tags.Any())
                 {
@@ -419,6 +421,59 @@ namespace fuszerkomat_api.Services
             {
                 _logger.LogError(ex, "ApplyForWorkTaskAsync unexpected error. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
                 return Result<ApplyVMO>.Internal(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+            }
+        }
+
+        public async Task<Result<List<UserWorkTaskPreviewVMO>>> GetOwnAsync(OwnWorkTasksFilterVM filters, string userId, CancellationToken ct)
+        {
+            try
+            {
+                var query = _workTaskRepo.Query().Include(t => t.Applications).Where(t => t.CreatedByUserId == userId);
+
+                if (filters.Statuses is { Count: > 0 })
+                {
+                    query = query.Where(t => filters.Statuses.Contains(t.Status));
+                }
+
+                var page = filters.Page <= 0 ? 1 : filters.Page;
+                var pageSize = filters.PageSize <= 0 ? 10 : Math.Min(filters.PageSize, 100);
+
+                var totalCount = await query.CountAsync(ct);
+                var pageCount = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+                var skip = (page - 1) * pageSize;
+
+                var res = await query.OrderByDescending(t => t.CreatedAt).Skip(skip).Take(pageSize).ToListAsync(ct);
+                var vmo = res.Select(a => new UserWorkTaskPreviewVMO()
+                {
+                    Desc = a.Desc,
+                    MaxPrice = a.MaxPrice,
+                    Name = a.Name,
+                    Applicants = a.Applications.Count,
+                    ReamainingDays = Convert.ToInt16((a.ExpiresAt - DateTime.Now).TotalDays),
+                    Location = new Location() { Latitude = a.Lattitude, Longtitude = a.Longttitude, Name = a.Location },
+                    Status = a.Status
+                }).ToList();
+
+                var pagination = new Pagination()
+                {
+                    CurrentPage = page,
+                    Count = vmo.Count,
+                    TotalCount = totalCount,
+                    PageCount = pageCount
+                };
+
+                return Result<List<UserWorkTaskPreviewVMO>>.Ok(data: vmo, pagination: pagination, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+            }
+            catch (OperationCanceledException ex)
+            {
+                _logger.LogWarning(ex, "GetOwnAsync was canceled. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
+                return Result<List<UserWorkTaskPreviewVMO>>.Canceled(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "GetOwnAsync unexpected error. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
+                return Result<List<UserWorkTaskPreviewVMO>>.Internal(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
             }
         }
     }
