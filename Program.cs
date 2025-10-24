@@ -7,8 +7,10 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using MongoDB.Driver;
 using Serilog;
 using Serilog.Context;
 using System.Text;
@@ -26,6 +28,36 @@ builder.Services.AddControllers()
 var connectionString = builder.Configuration.GetConnectionString("SQLConnectionString");
 builder.Services.AddDbContext<AppDbContext>(o => o.UseSqlServer(connectionString));
 builder.Services.AddDbContextFactory<AppDbContext>(o => o.UseSqlServer(connectionString), ServiceLifetime.Scoped);
+
+builder.Services.Configure<MongoContext>(builder.Configuration.GetSection("Mongo"));
+
+builder.Services.AddSingleton<IMongoClient>(sp =>
+{
+    return new MongoClient(builder.Configuration.GetConnectionString("MongoConnectionString"));
+});
+
+builder.Services.AddSingleton<IMongoClient>(sp =>
+{
+    var opts = sp.GetRequiredService<IOptions<MongoContext>>().Value;
+    var conn = !string.IsNullOrWhiteSpace(opts.ConnectionString)
+        ? opts.ConnectionString
+        : builder.Configuration.GetConnectionString("MongoConnectionString");
+    return new MongoClient(conn);
+});
+
+builder.Services.AddSingleton<IMongoDatabase>(sp =>
+{
+    var opts = sp.GetRequiredService<IOptions<MongoContext>>().Value;
+    var client = sp.GetRequiredService<IMongoClient>();
+    return client.GetDatabase(opts.Database);
+});
+builder.Services.AddSingleton<ChatCollections>(sp =>
+{
+    var opts = sp.GetRequiredService<IOptions<MongoContext>>().Value;
+    var db = sp.GetRequiredService<IMongoDatabase>();
+    return new ChatCollections(db, opts.Collections);
+});
+
 
 builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
 {
