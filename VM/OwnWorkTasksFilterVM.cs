@@ -1,0 +1,11 @@
+﻿using fuszerkomat_api.Data.Models;
+
+namespace fuszerkomat_api.VM
+{
+    public class OwnWorkTasksFilterVM
+    {
+        public int Page { get; set; } = 1;
+        public int PageSize { get; set; } = 50;
+        public List<Status>? Statuses { get; set; }
+    }
+}
