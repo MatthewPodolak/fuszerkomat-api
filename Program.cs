@@ -15,6 +15,7 @@ using Serilog;
 using Serilog.Context;
 using System.Text;
 using System.Text.Json.Serialization;
+using Grpc.AspNetCore.Web;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -30,11 +31,6 @@ builder.Services.AddDbContext<AppDbContext>(o => o.UseSqlServer(connectionString
 builder.Services.AddDbContextFactory<AppDbContext>(o => o.UseSqlServer(connectionString), ServiceLifetime.Scoped);
 
 builder.Services.Configure<MongoContext>(builder.Configuration.GetSection("Mongo"));
-
-builder.Services.AddSingleton<IMongoClient>(sp =>
-{
-    return new MongoClient(builder.Configuration.GetConnectionString("MongoConnectionString"));
-});
 
 builder.Services.AddSingleton<IMongoClient>(sp =>
 {
@@ -150,7 +146,22 @@ Log.Logger = new LoggerConfiguration()
 builder.Host.UseSerilog();
 
 
+builder.Services.AddGrpc();
+builder.Services.AddCors(o => o.AddPolicy("GrpcWeb", p => p
+    .WithOrigins("http://localhost:5112", "https://abgasfafasfa.com", "https://localhost:7047")
+    .AllowAnyHeader()
+    .AllowAnyMethod()
+    .AllowCredentials()
+));
+
 var app = builder.Build();
+
+app.UseRouting();
+app.UseCors();
+app.UseGrpcWeb(new GrpcWebOptions { DefaultEnabled = false });
+app.MapGrpcService<ChatGrpcService>()
+   .EnableGrpcWeb()
+   .RequireCors("GrpcWeb");
 
 static async Task SeedRolesAsync(IServiceProvider sp)
 {
