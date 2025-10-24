@@ -10,5 +10,6 @@ namespace fuszerkomat_api.Interfaces
         Task<Result<List<WorkTaskPreviewVMO>>> GetWorkTasksAsync(WorkTaskFilterVM filter, CancellationToken ct);
         Task<Result<UserWorkTaskVMO>> GetWorkTaskForUserAsync(int id, string userId, CancellationToken ct);
         Task<Result<CompanyWorkTaskVMO>> GetWorkTaskForCompanyAsync(int id, string userId, CancellationToken ct);
+        Task<Result<ApplyVMO>> ApplyForWorkTaskAsync(ApplyToWorkTaskVM model, string companyId, CancellationToken ct);
     }
 }

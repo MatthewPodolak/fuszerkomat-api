@@ -153,6 +153,11 @@ builder.Services.AddCors(o => o.AddPolicy("GrpcWeb", p => p
     .AllowAnyMethod()
     .AllowCredentials()
 ));
+builder.Services.AddGrpcClient<fuszerkomat_api.Grpc.Chat.ChatClient>((sp, o) =>
+{
+    var cfg = sp.GetRequiredService<IConfiguration>();
+    o.Address = new Uri(cfg["Grpc:ChatUrl"]!);
+});
 
 var app = builder.Build();
 
