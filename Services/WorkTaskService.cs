@@ -1,10 +1,12 @@
 ﻿using fuszerkomat_api.Data;
 using fuszerkomat_api.Data.Models;
+using fuszerkomat_api.Grpc;
 using fuszerkomat_api.Helpers;
 using fuszerkomat_api.Interfaces;
 using fuszerkomat_api.Repo;
 using fuszerkomat_api.VM;
 using fuszerkomat_api.VMO;
+using Grpc.Core;
 using Microsoft.EntityFrameworkCore;
 using System.Drawing;
 using System.Linq;
@@ -18,17 +20,19 @@ namespace fuszerkomat_api.Services
         private readonly IRepository<Category> _categoryRepo;
         private readonly IRepository<Tag> _tagRepo;
         private readonly IUnitOfWork _uow;
+        private readonly Chat.ChatClient _chatClient;
 
         private readonly ILogger<IWorkTaskService> _logger;
         private readonly IHttpContextAccessor _http;
 
-        public WorkTaskService(IRepository<AppUser> userRepo, IRepository<WorkTask> workTaskRepo, IRepository<Category> categoryRepo, IRepository<Tag> tagRepo, IUnitOfWork uow, ILogger<IWorkTaskService> logger, IHttpContextAccessor http)
+        public WorkTaskService(IRepository<AppUser> userRepo, IRepository<WorkTask> workTaskRepo, IRepository<Category> categoryRepo, IRepository<Tag> tagRepo, IUnitOfWork uow, Chat.ChatClient chatClient, ILogger<IWorkTaskService> logger, IHttpContextAccessor http)
         {
             _userRepo = userRepo;
             _workTaskRepo = workTaskRepo;
             _categoryRepo = categoryRepo;
             _tagRepo = tagRepo;
             _uow = uow;
+            _chatClient = chatClient;
             _logger = logger;
             _http = http;
         }
@@ -71,7 +75,7 @@ namespace fuszerkomat_api.Services
                     Name = model.Name ?? "Zlecenie " + new Random().Next(0, 9999),
                     Desc = model.Desc,
                     ExpectedRealisationTime = model.ExpectedRealisationTime,
-                    Status = Status.Open,
+                    Status = Data.Models.Status.Open,
                     MaxPrice = model.MaxPrice,
                     Category = category,
                     CategoryId = category.Id,
@@ -342,6 +346,81 @@ namespace fuszerkomat_api.Services
             {
                 _logger.LogError(ex, "GetWorkTaskForCompanyAsync unexpected error. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
                 return Result<CompanyWorkTaskVMO>.Internal(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+            }
+        }
+
+        public async Task<Result<ApplyVMO>> ApplyForWorkTaskAsync(ApplyToWorkTaskVM model, string companyId, CancellationToken ct)
+        {
+            try
+            {
+                var workTask = await _workTaskRepo.Query().Include(a => a.CreatedByUser).Include(a => a.Applications).ThenInclude(ap => ap.CompanyUser).FirstOrDefaultAsync(a => a.Id == model.WorkTaskId, ct);
+                if (workTask == null)
+                {
+                    _logger.LogWarning("ApplyForWorkTaskAsync tried to acess non existing worktask. Id={Id} Path={Path}, Method={Method}", model.WorkTaskId, _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
+                    return Result<ApplyVMO>.NotFound(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+                }
+
+                if(workTask.Applications.Any(a=>a.CompanyUserId == companyId))
+                {
+                    _logger.LogWarning("ApplyForWorkTaskAsync doubled application. Id={Id} CompanyId={CompanyId} Path={Path}, Method={Method}", model.WorkTaskId, companyId, _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
+                    return Result<ApplyVMO>.Conflict(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+                }
+
+                OpenOrGetConversationResponse chatResp;
+                try
+                {
+                    var deadline = DateTime.UtcNow.AddSeconds(10);
+
+                    chatResp = await _chatClient.OpenOrGetConversationAsync(
+                        new OpenOrGetConversationRequest
+                        {
+                            TaskId = workTask.Id,
+                            OwnerUserId = workTask.CreatedByUserId,
+                            CompanyUserId = companyId,
+                            InitialMessage = model.InitialMessage ?? string.Empty
+                        },
+                        deadline: deadline,
+                        cancellationToken: ct);
+                }
+                catch (RpcException rpcEx) when (rpcEx.StatusCode == StatusCode.NotFound)
+                {
+                    return Result<ApplyVMO>.NotFound(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+                }
+                catch (RpcException rpcEx) when (rpcEx.StatusCode == StatusCode.InvalidArgument)
+                {
+                    return Result<ApplyVMO>.BadRequest(errors: new List<Error>() { Error.Unauthorized(msg: "gRPC failed to validate new conv.") }, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+                }
+                catch (RpcException rpcEx)
+                {
+                    _logger.LogError(rpcEx, "Chat OpenOrGetConversation failed for WorkTask {Id}", workTask.Id);
+                    return Result<ApplyVMO>.Internal(errors: new List<Error>() { Error.Internal(msg: "gRPC failed to created new conv.") }, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+                }
+
+                var newApplication = new TaskApplication()
+                {
+                    ChatId = chatResp.ConversationId,
+                    CompanyUserId = companyId,
+                    CreatedAtUtc = DateTime.UtcNow,
+                    Message = model.InitialMessage,
+                    Status = ApplicationStatus.Applied,
+                    WorkTaskId = workTask.Id,
+                };
+
+                workTask.Applications.Add(newApplication);
+                await _uow.SaveChangesAsync(ct);
+
+                var vmo = new ApplyVMO() { ConversationId = chatResp.ConversationId };
+                return Result<ApplyVMO>.Ok(data: vmo, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+            }
+            catch (OperationCanceledException ex)
+            {
+                _logger.LogWarning(ex, "ApplyForWorkTaskAsync was canceled. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
+                return Result<ApplyVMO>.Canceled(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "ApplyForWorkTaskAsync unexpected error. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
+                return Result<ApplyVMO>.Internal(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
             }
         }
     }

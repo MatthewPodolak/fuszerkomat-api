@@ -37,7 +37,7 @@
     <Folder Include="Assets\Images\Company\Realizations\" />
     <Folder Include="Assets\Images\WorkTasks\" />
     <Folder Include="Assets\Images\Users\" />
-	<Protobuf Include="Data\Models\Chat\Proto\chat.proto" GrpcServices="Server" ProtoRoot="Data\Models\Chat\Proto" />
+	<Protobuf Include="Data\Models\Chat\Proto\chat.proto" GrpcServices="Both" ProtoRoot="Data\Models\Chat\Proto" />
   </ItemGroup>
 
 </Project>

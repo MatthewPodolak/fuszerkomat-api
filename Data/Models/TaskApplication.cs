@@ -14,6 +14,7 @@ namespace fuszerkomat_api.Data.Models
         public AppUser CompanyUser { get; set; } = default!;
 
         public string? Message { get; set; }
+        public string ChatId { get; set; }
         public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 
         public ApplicationStatus Status { get; set; } = ApplicationStatus.Applied;
