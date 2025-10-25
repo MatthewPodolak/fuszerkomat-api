@@ -4,6 +4,7 @@ using fuszerkomat_api.Interfaces;
 using fuszerkomat_api.Repo;
 using fuszerkomat_api.VM;
 using fuszerkomat_api.VMO;
+using Google.Protobuf.WellKnownTypes;
 using Microsoft.EntityFrameworkCore;
 
 namespace fuszerkomat_api.Services
@@ -97,13 +98,61 @@ namespace fuszerkomat_api.Services
             }
             catch (OperationCanceledException ex)
             {
-                _logger.LogWarning(ex, "PublishAsync was canceled. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
+                _logger.LogWarning(ex, "GetAll was canceled. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
                 return Result<List<CompanyToRatePreviewVMO>>.Canceled(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "PublishAsync unexpected error. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
+                _logger.LogError(ex, "GetAll unexpected error. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
                 return Result<List<CompanyToRatePreviewVMO>>.Internal(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+            }
+        }
+
+        public async Task<Result> RateCompany(RateCompanyVM model, string userId, CancellationToken ct)
+        {
+            try
+            {
+                var workTask = await _workTaskRepo.Query()
+                    .Where(t => t.CreatedByUserId == userId
+                                && t.Status == Status.Completed
+                                && t.Applications.Any(ap => ap.CompanyUserId == model.CompanyId))
+                    .FirstOrDefaultAsync(ct);
+
+                if(workTask == null)
+                {
+                    return Result.Forbidden(errors: new List<Error>() { Error.Forbidden(msg: "can't rate this company.") }, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+                }
+
+                var rating = await _opinionRepo.Query().Where(a => a.AuthorUserId == userId && a.CompanyId == model.CompanyId).FirstOrDefaultAsync(ct);
+                if(rating != null)
+                {
+                    return Result.Conflict(errors: new List<Error>() { Error.Conflict(msg: "Company already rated.") }, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+                }
+
+                var newRating = new Opinion()
+                {
+                    AuthorUserId = userId,
+                    CompanyId = model.CompanyId,
+                    Comment = model.Comment,
+                    CreatedAt = DateTime.UtcNow,
+                    InternalOpinion = true,
+                    Rating = model.Rating,
+                };
+
+                _opinionRepo.Add(newRating);
+                await _uow.SaveChangesAsync(ct);
+
+                return Result.Ok(errors: null, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+            }
+            catch (OperationCanceledException ex)
+            {
+                _logger.LogWarning(ex, "PublishAsync was canceled. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
+                return Result.Canceled(errors: null, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "PublishAsync unexpected error. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
+                return Result.Internal(errors: null, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
             }
         }
     }
