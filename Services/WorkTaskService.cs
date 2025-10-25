@@ -366,6 +366,11 @@ namespace fuszerkomat_api.Services
                     return Result<ApplyVMO>.Conflict(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
                 }
 
+                if(workTask.Status != Data.Models.Status.Open)
+                {
+                    return Result<ApplyVMO>.Conflict(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+                }
+
                 OpenOrGetConversationResponse chatResp;
                 try
                 {
@@ -474,6 +479,65 @@ namespace fuszerkomat_api.Services
             {
                 _logger.LogError(ex, "GetOwnAsync unexpected error. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
                 return Result<List<UserWorkTaskPreviewVMO>>.Internal(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+            }
+        }
+
+        public async Task<Result> ChangeApplicationStatusAsync(ChangeApplicationStatusVM model, string userId, CancellationToken ct)
+        {
+            try
+            {
+                var workTask = await _workTaskRepo.Query().Include(a=>a.Applications)
+                    .FirstOrDefaultAsync(a => a.CreatedByUserId == userId && a.Id == model.WorkTaskId, ct);
+
+                if(workTask == null)
+                {
+                    _logger.LogWarning("ChangeApplicationStatusAsync tried to acess npn existing workTask. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
+                    return Result.NotFound(errors: new List<Error>() { Error.NotFound(msg: "workTask does not exist.") }, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+                }
+
+                var targetApplication = workTask.Applications.FirstOrDefault(a => a.CompanyUserId == model.CompanyId);
+                if(targetApplication == null)
+                {
+                    return Result.NotFound(errors: new List<Error>() { Error.NotFound(msg: "This company didnt applicated for that task.") }, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+                }
+
+                switch (model.Answer)
+                {
+                    case AnswerAplication.Accept:
+                        if(workTask.Applications.Any(a=>a.Status == ApplicationStatus.Accepted))
+                        {
+                            return Result.Conflict(errors: new List<Error>() { Error.Conflict(msg: "Another company has already been accepted.") }, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+                        }
+
+                        targetApplication.Status = ApplicationStatus.Accepted;
+                        workTask.Status = Data.Models.Status.Closed;
+
+                        foreach (var app in workTask.Applications.Where(a => a.CompanyUserId != model.CompanyId))
+                        {
+                            if (app.Status != ApplicationStatus.Rejected)
+                                app.Status = ApplicationStatus.Rejected;
+                        }
+                        break;
+                    case AnswerAplication.Reject:
+                        targetApplication.Status = ApplicationStatus.Rejected;
+                        //TODO
+                        //delete chat?
+                        //notify company.
+                        break;
+                }
+
+                await _uow.SaveChangesAsync(ct);
+                return Result.Ok(errors: null, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+            }
+            catch (OperationCanceledException ex)
+            {
+                _logger.LogWarning(ex, "ChangeApplicationStatusAsync was canceled. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
+                return Result.Canceled(errors: null, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "ChangeApplicationStatusAsync unexpected error. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
+                return Result.Internal(errors: null, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
             }
         }
     }

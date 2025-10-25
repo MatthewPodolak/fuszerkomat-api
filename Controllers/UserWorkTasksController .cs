@@ -79,5 +79,24 @@ namespace fuszerkomat_api.Controllers
             var res = await _workTaskService.PublishAsync(model, userId, ct);
             return StatusCode(res.Status, res);
         }
+
+        [HttpPatch("change-application-status")]
+        [Authorize(Policy = "UserOnly")]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> ChangeApplicationStatus([FromBody] ChangeApplicationStatusVM model, CancellationToken ct)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (String.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(Result.Unauthorized(null, traceId: HttpContext.TraceIdentifier));
+            }
+
+            var res = await _workTaskService.ChangeApplicationStatusAsync(model, userId, ct);
+            return StatusCode(res.Status);
+        }
     }
 }
