@@ -98,5 +98,24 @@ namespace fuszerkomat_api.Controllers
             var res = await _workTaskService.ChangeApplicationStatusAsync(model, userId, ct);
             return StatusCode(res.Status);
         }
+
+        [HttpPatch("complete-realization")]
+        [Authorize(Policy = "UserOnly")]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> CompleteRealization([FromBody] CompleteRealizationVM model, CancellationToken ct)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (String.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(Result.Unauthorized(null, traceId: HttpContext.TraceIdentifier));
+            }
+
+            var res = await _workTaskService.CompleteRealization(model, userId, ct);
+            return StatusCode(res.Status);
+        }
     }
 }

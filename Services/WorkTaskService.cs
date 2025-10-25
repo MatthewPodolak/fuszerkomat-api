@@ -540,5 +540,43 @@ namespace fuszerkomat_api.Services
                 return Result.Internal(errors: null, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
             }
         }
+
+        public async Task<Result> CompleteRealization(CompleteRealizationVM model, string userId, CancellationToken ct)
+        {
+            try
+            {
+                var workTask = await _workTaskRepo.Query()
+                    .Include(a=>a.Applications).ThenInclude(a=>a.CompanyUser).ThenInclude(ac=>ac.CompanyProfile)
+                    .FirstOrDefaultAsync(a => a.Id == model.WorkTaskId, ct);
+
+                if(workTask == null)
+                {
+                    _logger.LogWarning("CompleteRealization tried to acess npn existing workTask. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
+                    return Result.NotFound(errors: new List<Error>() { Error.NotFound(msg: "workTask does not exist.") }, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+                }
+
+                var application = workTask.Applications.FirstOrDefault(a=>a.CompanyUserId == model.CompanyId && a.Status == ApplicationStatus.Accepted);
+                if(application == null)
+                {
+                    return Result.NotFound(errors: new List<Error>() { Error.NotFound(msg: "Company didnt applied.") }, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+                }
+
+                application.CompanyUser.CompanyProfile.RealizedTasks += 1;
+                workTask.Status = Data.Models.Status.Completed;
+                await _uow.SaveChangesAsync(ct);
+
+                return Result.Ok(errors: null, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+            }
+            catch (OperationCanceledException ex)
+            {
+                _logger.LogWarning(ex, "CompleteRealization was canceled. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
+                return Result.Canceled(errors: null, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "CompleteRealization unexpected error. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
+                return Result.Internal(errors: null, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+            }
+        }
     }
 }

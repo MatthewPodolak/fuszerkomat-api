@@ -7,6 +7,7 @@ namespace fuszerkomat_api.Data.Models
         [Key]
         public int Id { get; set; }
         public string CompanyName { get; set; }
+        public int RealizedTasks { get; set; } = 0;
         public string? Desc { get; set; }
         public string? Nip { get; set; }
         public string Email { get; set; }
