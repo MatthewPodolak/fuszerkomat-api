@@ -19,6 +19,26 @@ using Grpc.AspNetCore.Web;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("Frontend", policy =>
+    {
+        policy
+            .WithOrigins("http://localhost:5173", "https://localhost:5173")
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
+    });
+
+    options.AddPolicy("GrpcWeb", policy =>
+    {
+        policy
+            .WithOrigins("http://localhost:5112", "https://abgasfafasfa.com", "https://localhost:7047")
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
+    });
+});
 
 builder.Services.AddControllers()
     .AddJsonOptions(opt =>
@@ -149,12 +169,6 @@ builder.Host.UseSerilog();
 
 
 builder.Services.AddGrpc();
-builder.Services.AddCors(o => o.AddPolicy("GrpcWeb", p => p
-    .WithOrigins("http://localhost:5112", "https://abgasfafasfa.com", "https://localhost:7047")
-    .AllowAnyHeader()
-    .AllowAnyMethod()
-    .AllowCredentials()
-));
 builder.Services.AddGrpcClient<fuszerkomat_api.Grpc.Chat.ChatClient>((sp, o) =>
 {
     var cfg = sp.GetRequiredService<IConfiguration>();
@@ -209,7 +223,8 @@ app.UseSwaggerUI(o =>
     o.DisplayRequestDuration();
     o.EnablePersistAuthorization();
 });
-app.MapControllers();
+app.MapControllers()
+   .RequireCors("Frontend");
 
 app.UseStaticFiles(new StaticFileOptions
 {
