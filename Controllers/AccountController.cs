@@ -19,6 +19,26 @@ namespace fuszerkomat_api.Controllers
             _accountService = accountService;
         }
 
+        [HttpGet("get-own-profile")]
+        [Authorize]
+        [ProducesResponseType(typeof(Result<ProfileVMO>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(Result<ProfileVMO>), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(Result<ProfileVMO>), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(Result<ProfileVMO>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(Result<ProfileVMO>), StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> GetOwnProfileData(CancellationToken ct)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var accountType = User.FindFirstValue("account_type");
+            if (String.IsNullOrEmpty(userId) || string.IsNullOrEmpty(accountType))
+            {
+                return Unauthorized(Result.Unauthorized(null, traceId: HttpContext.TraceIdentifier));
+            }
+
+            var res = await _accountService.GetOwnProfileDataAsync(userId, accountType, ct);
+            return StatusCode(res.Status, res);
+        }
+
         [HttpGet("get-company-profile")]
         [Authorize]
         [ProducesResponseType(typeof(Result<CompanyProfileVMO>), StatusCodes.Status200OK)]
