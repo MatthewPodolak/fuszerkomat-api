@@ -41,7 +41,89 @@ namespace fuszerkomat_api.Services
             _logger = logger;
             _http = http;
         }
+        public async Task<Result<ProfileVMO>> GetOwnProfileDataAsync(string userId, string accType, CancellationToken ct)
+        {
+            try
+            {
+                var vmo = new ProfileVMO();
 
+                switch (accType)
+                {
+                    case "User":
+                        var user = await _userRepo.Query().AsNoTracking().Include(a => a.UserProfile).FirstOrDefaultAsync(a => a.Id == userId);
+                        if(user == null) { return Result<ProfileVMO>.NotFound(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty); }
+
+                        vmo.UserProfileDataVMO = new OwnUserProfileDataVMO()
+                        {
+                            Email = user.UserProfile.Email,
+                            Img = user.UserProfile.Img,
+                            Name = user.UserProfile.Name,
+                            PhoneNumber = user.UserProfile.PhoneNumber,
+                            Surname = user.UserProfile.Surname,
+                        };
+                        break;
+                    case "Company":
+                        var companyUser = await _userRepo.Query().AsNoTracking()
+                            .Include(a => a.CompanyProfile).ThenInclude(cq => cq.Opinions)
+                            .Include(a=>a.CompanyProfile).ThenInclude(ca => ca.Address)
+                            .Include(a => a.CompanyProfile).ThenInclude(cx => cx.Realizations).FirstOrDefaultAsync(a => a.Id == userId);
+                        if (companyUser == null) { return Result<ProfileVMO>.NotFound(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty); }
+
+                        vmo.CompanyProfileDataVMO = new OwnCompanyProfileDataVMO()
+                        {
+                            Desc = companyUser.CompanyProfile.Desc,
+                            Img = companyUser.CompanyProfile.Img,
+                            Nip = companyUser.CompanyProfile.Nip,
+                            BackgroundImg = companyUser.CompanyProfile.BackgroundImg,
+                            CompanyName = companyUser.CompanyProfile.CompanyName,
+                            Email = companyUser.CompanyProfile.Email,
+                            PhoneNumber = companyUser.CompanyProfile.PhoneNumber,
+                            RealizedTasks = companyUser.CompanyProfile.RealizedTasks,
+                            Rate = companyUser.Opinions.Any() ? companyUser.Opinions.Average(o => o.Rating) : 0,
+                            OpinionCount = companyUser.Opinions.Count,
+                            AdressVMO = (companyUser.CompanyProfile.Address != null) ? new AdressVMO()
+                            {
+                                City = companyUser.CompanyProfile.Address.City,
+                                Country = companyUser.CompanyProfile.Address.Country,
+                                Lattitude = companyUser.CompanyProfile.Address.Lattitude,
+                                Longtitude = companyUser.CompanyProfile.Address.Longtitude,
+                                PostalCode = companyUser.CompanyProfile.Address.PostalCode,
+                                Street = companyUser.CompanyProfile.Address.Street,
+                            } : null,
+                            Opinions = companyUser.CompanyProfile.Opinions.Select(a => new OpinionVMO()
+                            {
+                                Comment = a.Comment,
+                                CreatedAt = a.CreatedAt,
+                                CreatedByName = a.AuthorUser.UserName ?? "nieznany uzytkownik",
+                                Rating = a.Rating,
+                            }).ToList(),
+                            Realizations = companyUser.CompanyProfile.Realizations.Select(a => new RealizationVMO()
+                            {
+                                Date = a.Date,
+                                Desc = a.Desc,
+                                Img = a.Img,
+                                Localization = a.Localization,
+                            }).ToList(),
+                        };
+                        break;
+                    default:
+                        _logger.LogCritical("GetOwnProfileDataAsync somehow got WRONG claim from jwt.Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
+                        return Result<ProfileVMO>.Internal(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+                }
+
+                return Result<ProfileVMO>.Ok(data: vmo, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+            }
+            catch (OperationCanceledException ex)
+            {
+                _logger.LogWarning(ex, "GetOwnProfileDataAsync was canceled. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
+                return Result<ProfileVMO>.Canceled(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "GetOwnProfileDataAsync unexpected error. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
+                return Result<ProfileVMO>.Internal(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+            }
+        }
         public async Task<Result<CompanyProfileVMO>> GetCompanyProfileAsync(string id, CancellationToken ct)
         {
             try
