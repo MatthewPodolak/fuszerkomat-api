@@ -125,7 +125,7 @@ namespace fuszerkomat_api.Services
                 var user = new AppUser()
                 {
                     Email = model.Email,
-                    UserName = model.Name,
+                    UserName = model.Name ?? model.CompanyName,
                     AccountType = model.AccountType,
                     EmailConfirmed = true,
                 };
