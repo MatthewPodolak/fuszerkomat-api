@@ -10,6 +10,7 @@ using Grpc.Core;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
+using System.Globalization;
 
 namespace fuszerkomat_api.Services
 {
@@ -82,10 +83,10 @@ namespace fuszerkomat_api.Services
                     Tags = tags,
                 };
 
-                if(model.Location != null)
+                if (model.Location != null)
                 {
-                    newWorkTask.Lattitude = model.Location.Latitude;
-                    newWorkTask.Longttitude = model.Location.Longtitude;
+                    newWorkTask.Lattitude = Convert.ToDouble(model.Location.Latitude, CultureInfo.InvariantCulture);
+                    newWorkTask.Longttitude = Convert.ToDouble(model.Location.Longtitude, CultureInfo.InvariantCulture);
                     newWorkTask.Location = model.Location.Name ?? string.Empty;
                 }
                 else

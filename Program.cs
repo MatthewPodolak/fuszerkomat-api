@@ -40,11 +40,14 @@ builder.Services.AddCors(options =>
     });
 });
 
-builder.Services.AddControllers()
-    .AddJsonOptions(opt =>
-    {
-        opt.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
-    });
+builder.Services.AddControllers(options =>
+{
+    options.ModelBinderProviders.Insert(0, new InvariantNumberModelBinderProvider());
+})
+.AddJsonOptions(opt =>
+{
+    opt.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
 
 var connectionString = builder.Configuration.GetConnectionString("SQLConnectionString");
 builder.Services.AddDbContext<AppDbContext>(o => o.UseSqlServer(connectionString));
