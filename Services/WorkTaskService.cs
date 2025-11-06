@@ -477,7 +477,7 @@ namespace fuszerkomat_api.Services
         {
             try
             {
-                var query = _workTaskRepo.Query().Include(t => t.Applications).Where(t => t.CreatedByUserId == userId);
+                var query = _workTaskRepo.Query().Include(a=>a.Category).Include(a=>a.Tags).Include(t => t.Applications).Where(t => t.CreatedByUserId == userId);
 
                 if (filters.Statuses is { Count: > 0 })
                 {
@@ -498,6 +498,9 @@ namespace fuszerkomat_api.Services
                     Desc = a.Desc,
                     MaxPrice = a.MaxPrice,
                     Name = a.Name,
+                    Id = a.Id,
+                    Category = a.Category.CategoryType,
+                    Tags = a.Tags.Select(a=>a.TagType).ToList(),
                     Applicants = a.Applications.Count,
                     ReamainingDays = Convert.ToInt16((a.ExpiresAt - DateTime.Now).TotalDays),
                     Location = new Location() { Latitude = a.Lattitude, Longtitude = a.Longttitude, Name = a.Location },

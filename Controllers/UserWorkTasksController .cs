@@ -39,6 +39,7 @@ namespace fuszerkomat_api.Controllers
 
         [HttpGet("get-own")]
         [Authorize(Policy = "UserOnly")]
+        [ProducesResponseType(typeof(Result<List<UserWorkTaskPreviewVMO>>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(Result<List<UserWorkTaskPreviewVMO>>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(Result<List<UserWorkTaskPreviewVMO>>), StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(typeof(Result<List<UserWorkTaskPreviewVMO>>), StatusCodes.Status403Forbidden)]
