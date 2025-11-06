@@ -9,8 +9,10 @@ using fuszerkomat_api.VMO;
 using Grpc.Core;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
+using MongoDB.Driver;
 using System.Collections.Generic;
 using System.Globalization;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
 namespace fuszerkomat_api.Services
 {
@@ -19,14 +21,14 @@ namespace fuszerkomat_api.Services
         private readonly IRepository<AppUser> _userRepo;
         private readonly IRepository<WorkTask> _workTaskRepo;
         private readonly IRepository<Category> _categoryRepo;
-        private readonly IRepository<Tag> _tagRepo;
+        private readonly IRepository<Data.Models.Tag> _tagRepo;
         private readonly IUnitOfWork _uow;
         private readonly Chat.ChatClient _chatClient;
 
         private readonly ILogger<IWorkTaskService> _logger;
         private readonly IHttpContextAccessor _http;
 
-        public WorkTaskService(IRepository<AppUser> userRepo, IRepository<WorkTask> workTaskRepo, IRepository<Category> categoryRepo, IRepository<Tag> tagRepo, IUnitOfWork uow, Chat.ChatClient chatClient, ILogger<IWorkTaskService> logger, IHttpContextAccessor http)
+        public WorkTaskService(IRepository<AppUser> userRepo, IRepository<WorkTask> workTaskRepo, IRepository<Category> categoryRepo, IRepository<Data.Models.Tag> tagRepo, IUnitOfWork uow, Chat.ChatClient chatClient, ILogger<IWorkTaskService> logger, IHttpContextAccessor http)
         {
             _userRepo = userRepo;
             _workTaskRepo = workTaskRepo;
@@ -129,10 +131,17 @@ namespace fuszerkomat_api.Services
             }
         }
 
-        public async Task<Result<List<WorkTaskPreviewVMO>>> GetWorkTasksAsync(WorkTaskFilterVM filter, CancellationToken ct)
+        public async Task<Result<List<WorkTaskPreviewVMO>>> GetWorkTasksAsync(WorkTaskFilterVM filter, string userId, CancellationToken ct)
         {
             try
             {
+                var askingUser = await _userRepo.Query().Include(a=>a.CompanyProfile).ThenInclude(ac=>ac.Address).FirstOrDefaultAsync(a => a.Id == userId, ct);
+                if (askingUser == null)
+                {
+                    _logger.LogInformation("PublishAsync couldnt find user with given id. Path={Path} Method={Method} UserId={UserId}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method, userId);
+                    return Result<List<WorkTaskPreviewVMO>>.NotFound(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+                }
+
                 var query = _workTaskRepo.Query().Where(a=>a.Status == Data.Models.Status.Open);
 
                 if (filter.Tags != null && filter.Tags.Any())
@@ -143,19 +152,27 @@ namespace fuszerkomat_api.Services
 
                 if (filter.CategoryType != null)
                 {
-                    query.Where(a => a.Category.CategoryType == filter.CategoryType);
+                    query = query.Where(a => a.Category.CategoryType == filter.CategoryType);
                 }
 
                 query = query.Include(a => a.Tags).Include(a => a.Category).Include(a=>a.CreatedByUser).ThenInclude(a=>a.UserProfile);
 
                 if (!String.IsNullOrEmpty(filter.KeyWords))
                 {
-                    query.Where(a => a.Desc!.Contains(filter.KeyWords) || a.Name.Contains(filter.KeyWords));
+                    query = query.Where(a => a.Desc!.Contains(filter.KeyWords) || a.Name.Contains(filter.KeyWords));
                 }
 
                 if(filter.Location != null)
                 {
-                    query.Where(w => GeoUtils.DistanceKm(filter.Location.Latitude, filter.Location.Longtitude, w.Lattitude, w.Longttitude) <= filter.Location.Range);
+                    var taskCoords = await query.Select(w => new { w.Id, w.Lattitude, w.Longttitude }).ToListAsync(ct);
+
+                    var nearbyIds = taskCoords
+                        .Where(w => GeoUtils.DistanceKm(filter.Location.Latitude, filter.Location.Longtitude, w.Lattitude, w.Longttitude) <= filter.Location.Range)
+                        .Select(w => w.Id)
+                        .ToList();
+
+                    query = query.Where(w => nearbyIds.Contains(w.Id));
+
                 }
 
                 var totalCount = await query.CountAsync(ct);
@@ -187,15 +204,39 @@ namespace fuszerkomat_api.Services
 
                 var res = await query.Skip((filter.PageSize * (filter.Page - 1))).Take(filter.PageSize).Select(a => new WorkTaskPreviewVMO
                 {
+                    Id = a.Id,
                     Desc = a.Desc,
                     MaxPrice = a.MaxPrice,
                     Name = a.Name,
+                    Category = a.Category.CategoryType,
+                    Tags = a.Tags.Select(b => b.TagType).ToList(),
                     Applicants = a.Applications.Count,
                     ReamainingDays = Convert.ToInt16((a.ExpiresAt - DateTime.Now).TotalDays),
-                    Location = new Location() { Latitude = a.Lattitude, Longtitude = a.Longttitude, Name = a.Location },
+                    Location = new WorkTaskPreviewLocationVMO() { Latitude = a.Lattitude, Longtitude = a.Longttitude, Name = a.LocationName },
                     WorkTaskRequestingUserData = new WorkTaskRequestingUserDataPreviewVMO() { Name = a.CreatedByUser.UserProfile.Name, Pfp = a.CreatedByUser.UserProfile.Img },
                 })
                 .ToListAsync(ct);
+
+                var userLat = askingUser?.CompanyProfile?.Address?.Lattitude;
+                var userLon = askingUser?.CompanyProfile?.Address?.Longtitude;
+
+                if (userLat.HasValue && userLon.HasValue)
+                {
+                    foreach (var item in res)
+                    {
+                        var lat = item.Location?.Latitude;
+                        var lon = item.Location?.Longtitude;
+
+                        if (lat.HasValue && lon.HasValue && item.Location != null)
+                        {
+                            item.Location.DistanceFrom = GeoUtils.GetDistanceBetween(userLat.Value, userLon.Value, lat.Value, lon.Value);
+                        }
+                        else
+                        {
+                            item.Location!.DistanceFrom = null;
+                        }
+                    }
+                }
 
                 var pageCount = (int)Math.Ceiling((double)totalCount / filter.PageSize);
                 var pagination = new Pagination
@@ -310,6 +351,8 @@ namespace fuszerkomat_api.Services
                     CreatedAt = workTask.CreatedAt,
                     ExpiresAt = workTask.ExpiresAt,
                     Desc = workTask.Desc,
+                    Category = workTask.Category.CategoryType,
+                    Tags = workTask.Tags.Select(a=>a.TagType).ToList(),
                     MaxPrice = workTask.MaxPrice,
                     Name = workTask.Name,
                     ExpectedRealisationTime = workTask.ExpectedRealisationTime,

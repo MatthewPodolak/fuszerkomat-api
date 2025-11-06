@@ -150,6 +150,10 @@ namespace fuszerkomat_api.Services
                             AppUser = user,
                             Email = model.Email,
                             CompanyName = model.CompanyName ?? "Company" + new Random().Next(1, 9999),
+                            Address = new Address()
+                            {
+                                Country = "Polska",
+                            }
                         };
                         user.CompanyProfile = companyAcc;
                         role = "Company";

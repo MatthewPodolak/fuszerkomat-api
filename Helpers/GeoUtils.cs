@@ -20,6 +20,9 @@
             return EarthRadiusKm * c;
         }
 
+        public static double GetDistanceBetween(double lat1, double lon1, double lat2, double lon2)
+            => DistanceKm(lat1, lon1, lat2, lon2);
+
         private static double DegreesToRadians(double deg) => deg * Math.PI / 180.0;
     }
 }

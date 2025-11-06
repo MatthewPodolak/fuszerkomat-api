@@ -7,7 +7,7 @@ namespace fuszerkomat_api.Interfaces
     public interface IWorkTaskService
     {
         Task<Result> PublishAsync(PublishWorkTaskVM model, string userId, CancellationToken ct);
-        Task<Result<List<WorkTaskPreviewVMO>>> GetWorkTasksAsync(WorkTaskFilterVM filter, CancellationToken ct);
+        Task<Result<List<WorkTaskPreviewVMO>>> GetWorkTasksAsync(WorkTaskFilterVM filter, string userId, CancellationToken ct);
         Task<Result<UserWorkTaskVMO>> GetWorkTaskForUserAsync(int id, string userId, CancellationToken ct);
         Task<Result<CompanyWorkTaskVMO>> GetWorkTaskForCompanyAsync(int id, string userId, CancellationToken ct);
         Task<Result<ApplyVMO>> ApplyForWorkTaskAsync(ApplyToWorkTaskVM model, string companyId, CancellationToken ct);

@@ -16,6 +16,7 @@ namespace fuszerkomat_api.Data.Models
         public string Location { get; set; }
         public double Lattitude { get; set; }
         public double Longttitude { get; set; }
+        public string? LocationName { get; set; }
         public Status Status { get; set; }
 
         public string CreatedByUserId { get; set; } = default!;
