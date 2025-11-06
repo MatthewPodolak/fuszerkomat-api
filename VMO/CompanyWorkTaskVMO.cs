@@ -11,6 +11,8 @@ namespace fuszerkomat_api.VMO
         public decimal MaxPrice { get; set; } = 0m;
         public DateTime CreatedAt { get; set; }
         public DateTime ExpiresAt { get; set; } 
+        public CategoryType Category { get; set; }
+        public List<TagType> Tags { get; set; } = new List<TagType>();
         public RealisationTime ExpectedRealisationTime { get; set; }
         public List<string> Images { get; set; } = new List<string>();
         public Location? Location { get; set; }
