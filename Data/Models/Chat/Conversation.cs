@@ -6,6 +6,7 @@ namespace fuszerkomat_api.Data.Models.Chat
     {
         public ObjectId Id { get; set; }
         public int TaskId { get; set; }
+        public bool IsArchive { get; set; } = false;
         public string OwnerUserId { get; set; } = default!;
         public string CompanyUserId { get; set; } = default!;
         public DateTime CreatedAt { get; set; }
