@@ -72,7 +72,7 @@ namespace fuszerkomat_api.Services
                     {
                         Id = ObjectId.GenerateNewId(),
                         ConversationId = convo.Id,
-                        SenderId = request.OwnerUserId,
+                        SenderId = request.CompanyUserId,
                         Text = request.InitialMessage,
                         CreatedAt = now
                     };

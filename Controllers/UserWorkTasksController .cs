@@ -97,7 +97,7 @@ namespace fuszerkomat_api.Controllers
             }
 
             var res = await _workTaskService.ChangeApplicationStatusAsync(model, userId, ct);
-            return StatusCode(res.Status);
+            return StatusCode(res.Status, res);
         }
 
         [HttpPatch("complete-realization")]

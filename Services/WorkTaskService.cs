@@ -24,11 +24,12 @@ namespace fuszerkomat_api.Services
         private readonly IRepository<Data.Models.Tag> _tagRepo;
         private readonly IUnitOfWork _uow;
         private readonly Chat.ChatClient _chatClient;
+        private readonly IChatService _chatService;
 
         private readonly ILogger<IWorkTaskService> _logger;
         private readonly IHttpContextAccessor _http;
 
-        public WorkTaskService(IRepository<AppUser> userRepo, IRepository<WorkTask> workTaskRepo, IRepository<Category> categoryRepo, IRepository<Data.Models.Tag> tagRepo, IUnitOfWork uow, Chat.ChatClient chatClient, ILogger<IWorkTaskService> logger, IHttpContextAccessor http)
+        public WorkTaskService(IRepository<AppUser> userRepo, IRepository<WorkTask> workTaskRepo, IRepository<Category> categoryRepo, IRepository<Data.Models.Tag> tagRepo, IUnitOfWork uow, Chat.ChatClient chatClient, IChatService chatService, ILogger<IWorkTaskService> logger, IHttpContextAccessor http)
         {
             _userRepo = userRepo;
             _workTaskRepo = workTaskRepo;
@@ -36,6 +37,7 @@ namespace fuszerkomat_api.Services
             _tagRepo = tagRepo;
             _uow = uow;
             _chatClient = chatClient;
+            _chatService = chatService;
             _logger = logger;
             _http = http;
         }
@@ -563,13 +565,13 @@ namespace fuszerkomat_api.Services
                         {
                             if (app.Status != ApplicationStatus.Rejected)
                                 app.Status = ApplicationStatus.Rejected;
+
+                            await _chatService.ArchiveConversation(app.ChatId, ct);
                         }
                         break;
                     case AnswerAplication.Reject:
                         targetApplication.Status = ApplicationStatus.Rejected;
-                        //TODO
-                        //delete chat?
-                        //notify company.
+                        await _chatService.ArchiveConversation(targetApplication.ChatId, ct);
                         break;
                 }
 

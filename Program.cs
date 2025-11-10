@@ -33,7 +33,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy("GrpcWeb", policy =>
     {
         policy
-            .WithOrigins("http://localhost:5112", "https://abgasfafasfa.com", "https://localhost:7047")
+            .WithOrigins("http://localhost:5112", "https://abgasfafasfa.com", "https://localhost:7047", "http://localhost:5173", "https://localhost:5173")
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();

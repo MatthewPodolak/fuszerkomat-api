@@ -5,6 +5,7 @@ using fuszerkomat_api.Interfaces;
 using fuszerkomat_api.Repo;
 using fuszerkomat_api.VMO;
 using Microsoft.EntityFrameworkCore;
+using MongoDB.Bson;
 using MongoDB.Driver;
 
 namespace fuszerkomat_api.Services
@@ -12,12 +13,14 @@ namespace fuszerkomat_api.Services
     public class ChatService : IChatService
     {
         private readonly IRepository<AppUser> _userRepo;
+        private readonly IRepository<WorkTask> _workTaskRepo;
         private readonly ChatCollections _chat;
         private readonly ILogger<IChatService> _logger;
         private readonly IHttpContextAccessor _http;
-        public ChatService(IRepository<AppUser> userRepo, ChatCollections chat, ILogger<IChatService> logger, IHttpContextAccessor http)
+        public ChatService(IRepository<AppUser> userRepo, IRepository<WorkTask> workTaskRepo, ChatCollections chat, ILogger<IChatService> logger, IHttpContextAccessor http)
         {
             _userRepo = userRepo;
+            _workTaskRepo = workTaskRepo;
             _chat = chat;
             _logger = logger;
             _http = http;
@@ -47,7 +50,9 @@ namespace fuszerkomat_api.Services
                    {
                        Id = c.Id,
                        c.OwnerUserId,
-                       c.CompanyUserId
+                       c.CompanyUserId,
+                       c.TaskId,
+                       c.IsArchive
                    })
                    .ToListAsync(ct);
 
@@ -90,18 +95,68 @@ namespace fuszerkomat_api.Services
 
 
                 var counterpartDict = counterpartData.ToDictionary(x => x.Id, x => x);
+                var convoIds = convos.Select(c => c.Id).ToList();
+
+                var lastMsgs = await _chat.Messages.Aggregate()
+                .Match(Builders<Message>.Filter.In(m => m.ConversationId, convoIds))
+                .SortByDescending(m => m.CreatedAt)
+                .Group(m => m.ConversationId, g => new
+                {
+                    ConversationId = g.Key,
+                    Msg = g.First().Text,
+                    SenderId = g.First().SenderId
+                })
+                .ToListAsync(ct);
+
+                var lastMsgDict = lastMsgs.ToDictionary(
+                    x => x.ConversationId,
+                    x => new LastChatMsgVMO
+                    {
+                        Msg = x.Msg,
+                        Own = x.SenderId == userId
+                    });
+
+                var taskIds = convos.Select(c => c.TaskId).Where(id => id > 0).Distinct().ToList();
+                var taskDict = new Dictionary<int, TaskChatVMO>();
+                if (taskIds.Count > 0)
+                {
+                    var tasks = await _workTaskRepo.Query()
+                        .AsNoTracking().Include(a=>a.Applications)
+                        .Where(t => taskIds.Contains(t.Id))
+                        .Select(t => new TaskChatVMO
+                        {
+                            Id = t.Id,
+                            Name = t.Name,
+                            Desc = t.Desc,
+                            CreatorId = t.CreatedByUserId,
+                            Status = t.Status,
+                            ApplicationStatus = user.AccountType == AccountType.Company ? t.Applications.Where(a=>a.CompanyUserId == userId).Select(c=> new ApplicationStatusVMO()
+                            {
+                                Status = c.Status,
+                            }).FirstOrDefault() : null,
+                        })
+                        .ToListAsync(ct);
+
+                    taskDict = tasks.ToDictionary(t => t.Id, t => t);
+                }
 
                 var items = convos.Select(c =>
                 {
                     var otherId = c.OwnerUserId == userId ? c.CompanyUserId : c.OwnerUserId;
-                    counterpartDict.TryGetValue(otherId, out var other);
+                    var hasOther = counterpartDict.TryGetValue(otherId, out var other);
+
+                    lastMsgDict.TryGetValue(c.Id, out var lm);
+                    taskDict.TryGetValue(c.TaskId, out var td);
 
                     return new ChatVMO
                     {
                         ConversationId = c.Id.ToString(),
                         CorespondentId = otherId,
-                        CorespondentName = other.Name ?? "Unknown",
-                        CorespondentImg = other.Img ?? string.Empty
+                        CorespondentName = hasOther ? (other.Name ?? "Unknown") : "Unknown",
+                        CorespondentImg = hasOther ? (other.Img ?? string.Empty) : string.Empty,
+                        IsArchived = c.IsArchive,
+                        LastMsg = lm,
+                        TaskData = td,
                     };
                 }).ToList();
 
@@ -116,6 +171,35 @@ namespace fuszerkomat_api.Services
             {
                 _logger.LogError(ex, "Unhandled error in GetChatsAsync. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
                 return Result<List<ChatVMO>>.Internal(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+            }
+        }
+
+        public async Task<Result> ArchiveConversation(string convesationId, CancellationToken ct)
+        {
+            try
+            {
+                var f = Builders<Conversation>.Filter;
+                var filter = f.Eq(c => c.Id, new ObjectId(convesationId));
+
+                var update = Builders<Conversation>.Update
+                    .Set(c => c.IsArchive, true);
+
+                var result = await _chat.Conversations.UpdateOneAsync(filter, update, cancellationToken: ct);
+
+                if (result.ModifiedCount == 0)
+                {
+                    return Result.Internal(errors: new List<Error>() { Error.Internal() }, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+                }
+
+                return Result.Ok(errors: null, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+            }
+            catch(OperationCanceledException ex)
+            {
+                return Result.Canceled(errors: null, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+            }
+            catch (Exception ex)
+            {
+                return Result.Internal(errors: new List<Error>() { Error.Internal() }, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
             }
         }
     }
