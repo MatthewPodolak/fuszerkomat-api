@@ -62,8 +62,29 @@ namespace fuszerkomat_api.Controllers
             return StatusCode(res.Status, res);
         }
 
+        [HttpGet("get-applied")]
+        [Authorize(Policy = "CompanyOnly")]
+        [ProducesResponseType(typeof(Result<List<CompanyTaskApplyVMO>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(Result<List<CompanyTaskApplyVMO>>), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(Result<List<CompanyTaskApplyVMO>>), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(Result<List<CompanyTaskApplyVMO>>), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(Result<List<CompanyTaskApplyVMO>>), StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> GetApplied([FromQuery] CompanyAppliedFilterVM filter, CancellationToken ct)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (String.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(Result<List<CompanyTaskApplyVMO>>.Unauthorized(null, traceId: HttpContext.TraceIdentifier));
+            }
+
+            var res = await _workTaskService.GetCompanyAppliedTasksAsync(filter, userId, ct);
+            return StatusCode(res.Status, res);
+        }
+
+
         [HttpPost("apply")]
         [Authorize(Policy = "CompanyOnly")]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(Result), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(Result), StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(typeof(Result), StatusCodes.Status403Forbidden)]

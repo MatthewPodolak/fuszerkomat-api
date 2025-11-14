@@ -21,6 +21,7 @@ namespace fuszerkomat_api.Services
         private readonly IRepository<AppUser> _userRepo;
         private readonly IRepository<WorkTask> _workTaskRepo;
         private readonly IRepository<Category> _categoryRepo;
+        private readonly IRepository<TaskApplication> _applicationRepo;
         private readonly IRepository<Data.Models.Tag> _tagRepo;
         private readonly IUnitOfWork _uow;
         private readonly Chat.ChatClient _chatClient;
@@ -29,12 +30,13 @@ namespace fuszerkomat_api.Services
         private readonly ILogger<IWorkTaskService> _logger;
         private readonly IHttpContextAccessor _http;
 
-        public WorkTaskService(IRepository<AppUser> userRepo, IRepository<WorkTask> workTaskRepo, IRepository<Category> categoryRepo, IRepository<Data.Models.Tag> tagRepo, IUnitOfWork uow, Chat.ChatClient chatClient, IChatService chatService, ILogger<IWorkTaskService> logger, IHttpContextAccessor http)
+        public WorkTaskService(IRepository<AppUser> userRepo, IRepository<WorkTask> workTaskRepo, IRepository<Category> categoryRepo, IRepository<Data.Models.Tag> tagRepo, IRepository<TaskApplication> applicationRepo, IUnitOfWork uow, Chat.ChatClient chatClient, IChatService chatService, ILogger<IWorkTaskService> logger, IHttpContextAccessor http)
         {
             _userRepo = userRepo;
             _workTaskRepo = workTaskRepo;
             _categoryRepo = categoryRepo;
             _tagRepo = tagRepo;
+            _applicationRepo = applicationRepo;
             _uow = uow;
             _chatClient = chatClient;
             _chatService = chatService;
@@ -625,6 +627,61 @@ namespace fuszerkomat_api.Services
             {
                 _logger.LogError(ex, "CompleteRealization unexpected error. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
                 return Result.Internal(errors: null, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+            }
+        }
+
+        public async Task<Result<List<CompanyTaskApplyVMO>>> GetCompanyAppliedTasksAsync(CompanyAppliedFilterVM filter, string id, CancellationToken ct)
+        {
+            string traceId = _http.HttpContext?.TraceIdentifier ?? string.Empty;
+
+            try
+            {
+                var query = _applicationRepo.Query().AsNoTracking()
+                    .Include(ac => ac.WorkTask).ThenInclude(aca=>aca.Category)
+                    .Include(at => at.WorkTask).ThenInclude(ata => ata.Tags)
+                    .Where(a => a.CompanyUserId == id);
+
+                if (filter.Statuses != null)
+                {
+                    query = query.Where(a => filter.Statuses.Contains(a.Status));
+                }
+
+                var totalCount = await query.CountAsync(ct);
+                var pageCount = (int)Math.Ceiling(totalCount / (double)filter.PageSize);
+
+                var items = await query.Skip((filter.PageSize * (filter.Page - 1))).Take(filter.PageSize).ToListAsync();
+                var vmo = items.Select(a => new CompanyTaskApplyVMO()
+                {
+                    Category = a.WorkTask.Category.CategoryType,
+                    Desc = a.WorkTask.Desc,
+                    Name = a.WorkTask.Name,
+                    MaxPrice = a.WorkTask.MaxPrice,
+                    Status = a.Status,
+                    TaskId = a.WorkTaskId,
+                    Location = a.WorkTask.Location ?? "Polska",
+                    Tags = a.WorkTask.Tags.Select(a=>a.TagType).ToList(),
+                }).ToList();
+
+
+                var pagination = new Pagination()
+                {
+                    CurrentPage = filter.Page,
+                    Count = vmo.Count,
+                    TotalCount = totalCount,
+                    PageCount = pageCount
+                };
+
+                return Result<List<CompanyTaskApplyVMO>>.Ok(data: vmo, pagination: pagination, traceId: traceId);
+            }
+            catch (OperationCanceledException ex)
+            {
+                _logger.LogWarning(ex, "GetCompanyAppliedTasksAsync was canceled. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
+                return Result<List<CompanyTaskApplyVMO>>.Canceled(traceId: traceId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "GetCompanyAppliedTasksAsync unexpected error. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
+                return Result<List<CompanyTaskApplyVMO>>.Internal(traceId: traceId);
             }
         }
     }
