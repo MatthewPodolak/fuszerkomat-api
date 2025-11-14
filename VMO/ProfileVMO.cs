@@ -18,7 +18,7 @@
         public string? PhoneNumber { get; set; }
         public string? Img { get; set; }
         public string? BackgroundImg { get; set; }
-        public AdressVMO? AdressVMO { get; set; }
+        public AdressVMO? Adress { get; set; }
         public List<OpinionVMO> Opinions { get; set; } = new List<OpinionVMO>();
         public List<RealizationVMO> Realizations { get; set; } = new List<RealizationVMO>();
     }

@@ -25,6 +25,8 @@
         public IFormFile? Photo { get; set; }
         public IFormFile? BackgroundPhoto { get; set; }
         public AdressVM? Adress { get; set; }
+        public List<RealizationVM> NewRealizations { get; set; } = new List<RealizationVM>();
+        public List<int> RelaizationsToDelete { get; set; } = new List<int>();
     }
 
     public class AdressVM
@@ -33,5 +35,16 @@
         public string? City { get; set; }
         public string? PostalCode { get; set; }
         public string? Country { get; set; }
+        public double? Longtitude { get; set; }
+        public double? Lattitude { get; set; }
+    }
+
+    public class RealizationVM
+    {
+        public string Title { get; set; }
+        public string Desc { get; set; }
+        public IFormFile Img { get; set; }
+        public DateOnly? Date { get; set; }
+        public string? Localization { get; set; }
     }
 }

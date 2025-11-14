@@ -6,6 +6,9 @@ namespace fuszerkomat_api.VMO
     public class CompanyProfileVMO
     {
         public string CompanyName { get; set; }
+        public int RealizedTasks { get; set; }
+        public int OpinionCount { get; set; }
+        public double Rate { get; set; }
         public string? Desc { get; set; }
         public string? Nip { get; set; }
         public string Email { get; set; }
@@ -37,6 +40,8 @@ namespace fuszerkomat_api.VMO
 
     public class RealizationVMO
     {
+        public int Id { get; set; }
+        public string? Title { get; set; }
         public string? Desc { get; set; }
         public string Img { get; set; }
         public DateOnly? Date { get; set; }
