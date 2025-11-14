@@ -14,5 +14,6 @@ namespace fuszerkomat_api.Interfaces
         Task<Result<List<UserWorkTaskPreviewVMO>>> GetOwnAsync(OwnWorkTasksFilterVM filters, string userId, CancellationToken ct);
         Task<Result> ChangeApplicationStatusAsync(ChangeApplicationStatusVM model, string userId, CancellationToken ct);
         Task<Result> CompleteRealization(CompleteRealizationVM model, string userId, CancellationToken ct);
+        Task<Result<List<CompanyTaskApplyVMO>>> GetCompanyAppliedTasksAsync(CompanyAppliedFilterVM filter, string id, CancellationToken ct);
     }
 }
