@@ -81,7 +81,7 @@ namespace fuszerkomat_api.Services
                             RealizedTasks = companyUser.CompanyProfile.RealizedTasks,
                             Rate = companyUser.Opinions.Any() ? companyUser.Opinions.Average(o => o.Rating) : 0,
                             OpinionCount = companyUser.Opinions.Count,
-                            AdressVMO = (companyUser.CompanyProfile.Address != null) ? new AdressVMO()
+                            Adress = (companyUser.CompanyProfile.Address != null) ? new AdressVMO()
                             {
                                 City = companyUser.CompanyProfile.Address.City,
                                 Country = companyUser.CompanyProfile.Address.Country,
@@ -99,6 +99,8 @@ namespace fuszerkomat_api.Services
                             }).ToList(),
                             Realizations = companyUser.CompanyProfile.Realizations.Select(a => new RealizationVMO()
                             {
+                                Id = a.Id,
+                                Title = a.Title,
                                 Date = a.Date,
                                 Desc = a.Desc,
                                 Img = a.Img,
@@ -131,6 +133,7 @@ namespace fuszerkomat_api.Services
                 var companyData = await _userRepo.Query().AsNoTracking()
                     .Include(u => u.CompanyProfile)
                         .ThenInclude(cp => cp.Opinions).ThenInclude(cpo => cpo.AuthorUser).ThenInclude(cpop => cpop.UserProfile)
+                    .Include(u => u.CompanyProfile).ThenInclude(uc => uc.Address)
                     .Include(u => u.CompanyProfile)
                         .ThenInclude(cp => cp.Realizations).FirstOrDefaultAsync(u => u.Id == id, ct);
 
@@ -147,17 +150,20 @@ namespace fuszerkomat_api.Services
                     Email = companyData.CompanyProfile.Email,
                     Img = companyData.CompanyProfile.Img,
                     Nip = companyData.CompanyProfile.Nip,
+                    OpinionCount = companyData.Opinions.Count,
+                    RealizedTasks = companyData.CompanyProfile.RealizedTasks,
+                    Rate = companyData.Opinions.Any() ? companyData.Opinions.Average(o => o.Rating) : 0,
                     BackgroundImg = companyData.CompanyProfile.BackgroundImg,
                     PhoneNumber = companyData.CompanyProfile.PhoneNumber,
-                    Adress = new AdressVMO()
+                    Adress = (companyData.CompanyProfile.Address != null) ? new AdressVMO()
                     {
                         City = companyData.CompanyProfile.Address.City,
                         Country = companyData.CompanyProfile.Address.Country,
-                        Street = companyData.CompanyProfile.Address.Street,
                         Lattitude = companyData.CompanyProfile.Address.Lattitude,
-                        Longtitude = companyData.CompanyProfile.Address.Lattitude,
-                        PostalCode = companyData.CompanyProfile.Address.PostalCode
-                    },
+                        Longtitude = companyData.CompanyProfile.Address.Longtitude,
+                        PostalCode = companyData.CompanyProfile.Address.PostalCode,
+                        Street = companyData.CompanyProfile.Address.Street,
+                    } : null,
                     Opinions = companyData.Opinions.Select(a=> new OpinionVMO()
                     {
                         Comment = a.Comment,
@@ -167,6 +173,8 @@ namespace fuszerkomat_api.Services
                     }).ToList(),
                     Realizations = companyData.CompanyProfile.Realizations.Select(a=> new RealizationVMO() 
                     { 
+                        Id = a.Id,
+                        Title = a.Title,
                         Date = a.Date,
                         Desc = a.Desc,
                         Img = a.Img,
@@ -191,7 +199,10 @@ namespace fuszerkomat_api.Services
         {
             try
             {
-                var user = await _userRepo.Query().Include(a => a.CompanyProfile).ThenInclude(a => a.Address).FirstOrDefaultAsync(a => a.Id == userId);
+                var user = await _userRepo.Query()
+                    .Include(a => a.CompanyProfile).ThenInclude(a => a.Address)
+                    .Include(a => a.CompanyProfile).ThenInclude(a => a.Realizations)
+                    .FirstOrDefaultAsync(a => a.Id == userId);
                 if(user == null)
                 {
                     _logger.LogInformation("UpdateCompanyInfrormation couldnt find user with given id. Path={Path} Method={Method} UserId={UserId}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method, userId);
@@ -218,6 +229,8 @@ namespace fuszerkomat_api.Services
                     if (model.Adress.City != null) newCompanyInfo.Address.City = model.Adress.City;
                     if (model.Adress.PostalCode != null) newCompanyInfo.Address.PostalCode = model.Adress.PostalCode;
                     if (model.Adress.Country != null) newCompanyInfo.Address.Country = model.Adress.Country;
+                    if (model.Adress.Longtitude.HasValue) newCompanyInfo.Address.Longtitude = model.Adress.Longtitude.Value;
+                    if (model.Adress.Lattitude.HasValue) newCompanyInfo.Address.Lattitude = model.Adress.Lattitude.Value;
                 }
 
                 if (model.Photo != null && model.Photo.Length > 0)
@@ -238,6 +251,41 @@ namespace fuszerkomat_api.Services
                         ct);
                 }
 
+                if (model.RelaizationsToDelete != null && model.RelaizationsToDelete.Count > 0)
+                {
+                    newCompanyInfo.Realizations = newCompanyInfo.Realizations
+                        .Where(r => !model.RelaizationsToDelete.Contains(r.Id))
+                        .ToList();
+                }
+
+                if (model.NewRealizations != null && model.NewRealizations.Count > 0)
+                {
+                    var tasks = model.NewRealizations.Select(async a =>
+                    {
+                        var savedPath = await PhotoSaver.SavePhotoAsync(
+                            a.Img,
+                            physicalFolder: Path.Combine("Assets", "Images", "Company", "Realizations"),
+                            requestPathPrefix: "/company/realizations",
+                            ct: ct
+                        );
+
+                        return new Realization
+                        {
+                            Title = a.Title,
+                            Date = a.Date,
+                            Desc = a.Desc,
+                            Localization = a.Localization,
+                            Img = savedPath
+                        };
+                    });
+
+                    var realizations = await Task.WhenAll(tasks);
+
+                    if (newCompanyInfo.Realizations is List<Realization> list)
+                    {
+                        list.AddRange(realizations);
+                    }
+                }
 
                 if (user.CompanyProfile == null)
                     user.CompanyProfile = newCompanyInfo;
