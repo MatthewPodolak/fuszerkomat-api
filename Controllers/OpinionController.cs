@@ -39,11 +39,11 @@ namespace fuszerkomat_api.Controllers
 
         [HttpPost("rate")]
         [Authorize(Policy = "UserOnly")]
-        [ProducesResponseType(typeof(Result<List<CompanyToRatePreviewVMO>>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(Result<List<CompanyToRatePreviewVMO>>), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(Result<List<CompanyToRatePreviewVMO>>), StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(typeof(Result<List<CompanyToRatePreviewVMO>>), StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(typeof(Result<List<CompanyToRatePreviewVMO>>), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> RateCompany([FromBody] RateCompanyVM model, CancellationToken ct)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);

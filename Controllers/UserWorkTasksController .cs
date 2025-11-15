@@ -116,7 +116,7 @@ namespace fuszerkomat_api.Controllers
             }
 
             var res = await _workTaskService.CompleteRealization(model, userId, ct);
-            return StatusCode(res.Status);
+            return StatusCode(res.Status, res);
         }
     }
 }

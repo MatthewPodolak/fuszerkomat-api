@@ -52,6 +52,11 @@ namespace fuszerkomat_api.Data
                 .HasForeignKey(o => o.AuthorUserId)
                 .OnDelete(DeleteBehavior.NoAction);
 
+            modelBuilder.Entity<Opinion>()
+                .HasOne(o => o.WorkTask)
+                .WithOne(t => t.Opinion)
+                .HasForeignKey<Opinion>(o => o.WorkTaskId);
+
             modelBuilder.Entity<WorkTask>()
                 .HasMany(a => a.Tags)
                 .WithMany(a => a.WorkTasks)
@@ -113,10 +118,6 @@ namespace fuszerkomat_api.Data
 
             modelBuilder.Entity<TaskApplication>()
                 .HasIndex(a => new { a.WorkTaskId, a.CompanyUserId })
-                .IsUnique();
-
-            modelBuilder.Entity<Opinion>()
-                .HasIndex(o => new { o.AuthorUserId, o.CompanyId })
                 .IsUnique();
 
             modelBuilder.Entity<CompanyProfile>()

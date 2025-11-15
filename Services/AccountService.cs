@@ -64,9 +64,12 @@ namespace fuszerkomat_api.Services
                         break;
                     case "Company":
                         var companyUser = await _userRepo.Query().AsNoTracking()
-                            .Include(a => a.CompanyProfile).ThenInclude(cq => cq.Opinions)
-                            .Include(a=>a.CompanyProfile).ThenInclude(ca => ca.Address)
-                            .Include(a => a.CompanyProfile).ThenInclude(cx => cx.Realizations).FirstOrDefaultAsync(a => a.Id == userId);
+                            .Include(a => a.CompanyProfile).ThenInclude(ca => ca.Address)
+                            .Include(a => a.CompanyProfile).ThenInclude(cx => cx.Realizations)
+                            .Include(a => a.Opinions).ThenInclude(o => o.AuthorUser).ThenInclude(oc => oc.UserProfile)
+                            .Include(a=>a.Opinions).ThenInclude(at=>at.WorkTask).ThenInclude(atc=>atc.Category)
+                            .FirstOrDefaultAsync(a => a.Id == userId);
+
                         if (companyUser == null) { return Result<ProfileVMO>.NotFound(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty); }
 
                         vmo.CompanyProfileDataVMO = new OwnCompanyProfileDataVMO()
@@ -79,7 +82,7 @@ namespace fuszerkomat_api.Services
                             Email = companyUser.CompanyProfile.Email,
                             PhoneNumber = companyUser.CompanyProfile.PhoneNumber,
                             RealizedTasks = companyUser.CompanyProfile.RealizedTasks,
-                            Rate = companyUser.Opinions.Any() ? companyUser.Opinions.Average(o => o.Rating) : 0,
+                            Rate = companyUser.Opinions.Any() ? Math.Round(companyUser.Opinions.Average(o => o.Rating), 1) : 0,
                             OpinionCount = companyUser.Opinions.Count,
                             Adress = (companyUser.CompanyProfile.Address != null) ? new AdressVMO()
                             {
@@ -90,11 +93,13 @@ namespace fuszerkomat_api.Services
                                 PostalCode = companyUser.CompanyProfile.Address.PostalCode,
                                 Street = companyUser.CompanyProfile.Address.Street,
                             } : null,
-                            Opinions = companyUser.CompanyProfile.Opinions.Select(a => new OpinionVMO()
+                            Opinions = companyUser.Opinions.Select(a => new OpinionVMO
                             {
                                 Comment = a.Comment,
                                 CreatedAt = a.CreatedAt,
-                                CreatedByName = a.AuthorUser.UserName ?? "nieznany uzytkownik",
+                                CreatorName = a.AuthorUser.UserProfile.Name ?? "nieznany uzytkownik",
+                                CreatorPfp = a.AuthorUser.UserProfile.Img,
+                                Category = a.WorkTask.Category.CategoryType,
                                 Rating = a.Rating,
                             }).ToList(),
                             Realizations = companyUser.CompanyProfile.Realizations.Select(a => new RealizationVMO()
@@ -131,13 +136,13 @@ namespace fuszerkomat_api.Services
             try
             {
                 var companyData = await _userRepo.Query().AsNoTracking()
-                    .Include(u => u.CompanyProfile)
-                        .ThenInclude(cp => cp.Opinions).ThenInclude(cpo => cpo.AuthorUser).ThenInclude(cpop => cpop.UserProfile)
                     .Include(u => u.CompanyProfile).ThenInclude(uc => uc.Address)
-                    .Include(u => u.CompanyProfile)
-                        .ThenInclude(cp => cp.Realizations).FirstOrDefaultAsync(u => u.Id == id, ct);
+                    .Include(u => u.CompanyProfile).ThenInclude(cp => cp.Realizations)
+                    .Include(u => u.Opinions).ThenInclude(o => o.AuthorUser).ThenInclude(a => a.UserProfile)
+                    .Include(a => a.Opinions).ThenInclude(at => at.WorkTask).ThenInclude(atc => atc.Category)
+                    .FirstOrDefaultAsync(u => u.Id == id, ct);
 
-                if(companyData == null)
+                if (companyData == null)
                 {
                     _logger.LogWarning("GetCompanyProfileAsync couldnt find user with given id. Id={Id} Path={Path}, Method={Method}",id, _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
                     return Result<CompanyProfileVMO>.NotFound(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
@@ -152,7 +157,7 @@ namespace fuszerkomat_api.Services
                     Nip = companyData.CompanyProfile.Nip,
                     OpinionCount = companyData.Opinions.Count,
                     RealizedTasks = companyData.CompanyProfile.RealizedTasks,
-                    Rate = companyData.Opinions.Any() ? companyData.Opinions.Average(o => o.Rating) : 0,
+                    Rate = companyData.Opinions.Any() ? Math.Round(companyData.Opinions.Average(o => o.Rating), 1) : 0,
                     BackgroundImg = companyData.CompanyProfile.BackgroundImg,
                     PhoneNumber = companyData.CompanyProfile.PhoneNumber,
                     Adress = (companyData.CompanyProfile.Address != null) ? new AdressVMO()
@@ -164,11 +169,13 @@ namespace fuszerkomat_api.Services
                         PostalCode = companyData.CompanyProfile.Address.PostalCode,
                         Street = companyData.CompanyProfile.Address.Street,
                     } : null,
-                    Opinions = companyData.Opinions.Select(a=> new OpinionVMO()
+                    Opinions = companyData.Opinions.Select(a => new OpinionVMO
                     {
                         Comment = a.Comment,
                         CreatedAt = a.CreatedAt,
-                        CreatedByName = a.AuthorUser.UserProfile.Name,
+                        CreatorName = a.AuthorUser.UserProfile.Name ?? "nieznany uzytkownik",
+                        CreatorPfp = a.AuthorUser.UserProfile.Img,
+                        Category = a.WorkTask.Category.CategoryType,
                         Rating = a.Rating
                     }).ToList(),
                     Realizations = companyData.CompanyProfile.Realizations.Select(a=> new RealizationVMO() 

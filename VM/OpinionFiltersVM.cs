@@ -4,13 +4,12 @@
     {
         public int PageNumber { get; set; } = 1;
         public int PageSize { get; set; } = 50;
-        public Rated Rated { get; set; } = Rated.Both;
+        public List<OpinionType>? Types { get; set; }
     }
 
-    public enum Rated
+    public enum OpinionType
     {
-        True,
-        False,
-        Both
+        Rated,
+        NotRated
     }
 }
