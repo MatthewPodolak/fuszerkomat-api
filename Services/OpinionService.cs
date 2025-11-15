@@ -34,18 +34,24 @@ namespace fuszerkomat_api.Services
                 int page = filters.PageNumber <= 0 ? 1 : filters.PageNumber;
                 int pageSize = filters.PageSize <= 0 ? 10 : filters.PageSize;
 
-                var workTasks = await _workTaskRepo.Query().AsNoTracking().Where(t => t.CreatedByUserId == userId && t.Status == Status.Completed)
-                    .Include(t => t.Images).Include(t => t.Applications).ThenInclude(ap => ap.CompanyUser).ThenInclude(u => u.CompanyProfile).ThenInclude(p => p.Opinions)
+                var workTasks = await _workTaskRepo.Query().AsNoTracking()
+                    .Where(t => t.CreatedByUserId == userId && t.Status == Status.Completed)
+                    .Include(t => t.Applications)
+                        .ThenInclude(ap => ap.CompanyUser)
+                            .ThenInclude(u => u.CompanyProfile)
+                    .Include(t => t.Category)
+                    .Include(t => t.Tags)
+                    .Include(t => t.Opinion)
                     .ToListAsync(ct);
 
-                var projected = workTasks
-                .Select(t =>
+
+                var projected = workTasks.Select(t =>
                 {
                     var accepted = t.Applications.FirstOrDefault(ap => ap.Status == ApplicationStatus.Accepted);
                     var profile = accepted?.CompanyUser?.CompanyProfile;
                     if (accepted == null || profile == null) return null;
 
-                    var opinion = profile.Opinions?.FirstOrDefault(o => o.AuthorUserId == userId);
+                    var opinion = t.Opinion;
 
                     return new CompanyToRatePreviewVMO
                     {
@@ -55,12 +61,15 @@ namespace fuszerkomat_api.Services
 
                         TaskData = new CompanyToRateTaskDataVMO
                         {
+                            TaskId = t.Id,
                             Name = t.Name,
                             Desc = t.Desc,
-                            Imgs = t.Images.Select(a => a.Img).ToList() ?? new List<string>()
+                            Category = t.Category.CategoryType,
+                            Tags = t.Tags.Select(a => a.TagType).ToList(),
                         },
 
-                        CompanyRating = opinion == null ? null
+                        CompanyRating = opinion == null
+                            ? null
                             : new CompanyRateVMO
                             {
                                 Comment = opinion.Comment,
@@ -69,15 +78,23 @@ namespace fuszerkomat_api.Services
                             }
                     };
                 })
-                .Where(v => v != null)!
-                .ToList();
+                .Where(v => v != null)!.Cast<CompanyToRatePreviewVMO>().ToList();
 
-                var filtered = filters.Rated switch
+                IEnumerable<CompanyToRatePreviewVMO> filtered = projected;
+                if (filters.Types != null && filters.Types.Any())
                 {
-                    Rated.True => projected.Where(x => x.CompanyRating != null),
-                    Rated.False => projected.Where(x => x.CompanyRating == null),
-                    _ => projected
-                };
+                    bool includeRated = filters.Types.Contains(OpinionType.Rated);
+                    bool includeNotRated = filters.Types.Contains(OpinionType.NotRated);
+
+                    if (includeRated && !includeNotRated)
+                    {
+                        filtered = filtered.Where(x => x.CompanyRating != null);
+                    }
+                    else if (!includeRated && includeNotRated)
+                    {
+                        filtered = filtered.Where(x => x.CompanyRating == null);
+                    }
+                }
 
                 var totalCount = filtered.Count();
                 var pageCount = (int)Math.Ceiling(totalCount / (double)pageSize);
@@ -110,49 +127,55 @@ namespace fuszerkomat_api.Services
 
         public async Task<Result> RateCompany(RateCompanyVM model, string userId, CancellationToken ct)
         {
+            string traceId = _http.HttpContext?.TraceIdentifier ?? string.Empty;
+
             try
             {
-                var workTask = await _workTaskRepo.Query()
-                    .Where(t => t.CreatedByUserId == userId
-                                && t.Status == Status.Completed
-                                && t.Applications.Any(ap => ap.CompanyUserId == model.CompanyId))
-                    .FirstOrDefaultAsync(ct);
-
+                var workTask = await _workTaskRepo.Query().Include(a => a.Applications).Include(d => d.Opinion)
+                    .Where(a=>a.Status == Status.Completed && a.CreatedByUserId == userId).FirstOrDefaultAsync(a => a.Id == model.TaskId, ct);
+                    
                 if(workTask == null)
                 {
-                    return Result.Forbidden(errors: new List<Error>() { Error.Forbidden(msg: "can't rate this company.") }, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+                    return Result.NotFound(errors: null, traceId: traceId);
                 }
 
-                var rating = await _opinionRepo.Query().Where(a => a.AuthorUserId == userId && a.CompanyId == model.CompanyId).FirstOrDefaultAsync(ct);
-                if(rating != null)
+                if(workTask.Opinion != null)
                 {
-                    return Result.Conflict(errors: new List<Error>() { Error.Conflict(msg: "Company already rated.") }, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+                    return Result.Conflict(errors: new List<Error>() { Error.Conflict(msg: "Already rated") }, traceId: traceId);
                 }
 
-                var newRating = new Opinion()
+                var hasAcceptedApplicationForCompany = workTask.Applications.Any(a => a.CompanyUserId == model.CompanyId && a.Status == ApplicationStatus.Accepted);
+                if (!hasAcceptedApplicationForCompany)
+                {
+                    _logger.LogWarning("User is trying to rate company not accepted for given task. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
+                    return Result.NotFound(errors: null, traceId: traceId);
+                }
+
+                var opinion = new Opinion()
                 {
                     AuthorUserId = userId,
-                    CompanyId = model.CompanyId,
                     Comment = model.Comment,
+                    CompanyId = model.CompanyId,
                     CreatedAt = DateTime.UtcNow,
                     InternalOpinion = true,
                     Rating = model.Rating,
+                    WorkTaskId = model.TaskId
                 };
 
-                _opinionRepo.Add(newRating);
+                _opinionRepo.Add(opinion);
                 await _uow.SaveChangesAsync(ct);
 
-                return Result.Ok(errors: null, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+                return Result.Ok(errors: null, traceId: traceId);
             }
             catch (OperationCanceledException ex)
             {
                 _logger.LogWarning(ex, "PublishAsync was canceled. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
-                return Result.Canceled(errors: null, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+                return Result.Canceled(errors: null, traceId: traceId);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "PublishAsync unexpected error. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
-                return Result.Internal(errors: null, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+                return Result.Internal(errors: null, traceId: traceId);
             }
         }
     }

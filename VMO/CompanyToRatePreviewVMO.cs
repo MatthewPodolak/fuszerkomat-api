@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using fuszerkomat_api.Data.Models;
+using System.ComponentModel.DataAnnotations;
 
 namespace fuszerkomat_api.VMO
 {
@@ -14,9 +15,11 @@ namespace fuszerkomat_api.VMO
 
     public class CompanyToRateTaskDataVMO
     {
+        public int TaskId { get; set; }
         public string? Name { get; set; }
         public string? Desc { get; set; }
-        public List<string>? Imgs { get; set; }
+        public CategoryType Category { get; set; }
+        public List<TagType> Tags { get; set; } = new List<TagType>();
     }
 
     public class CompanyRateVMO

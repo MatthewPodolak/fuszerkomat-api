@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using fuszerkomat_api.Data;
 
@@ -11,9 +12,11 @@ using fuszerkomat_api.Data;
 namespace fuszerkomat_api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251115110840_opinion-work-task")]
+    partial class opinionworktask
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -462,8 +465,6 @@ namespace fuszerkomat_api.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AuthorUserId");
-
                     b.HasIndex("CompanyId");
 
                     b.HasIndex("CompanyProfileId");
@@ -473,6 +474,9 @@ namespace fuszerkomat_api.Migrations
                     b.HasIndex("WorkTaskId")
                         .IsUnique()
                         .HasFilter("[WorkTaskId] IS NOT NULL");
+
+                    b.HasIndex("AuthorUserId", "CompanyId")
+                        .IsUnique();
 
                     b.ToTable("Opinions");
                 });

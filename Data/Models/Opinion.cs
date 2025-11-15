@@ -16,5 +16,7 @@ namespace fuszerkomat_api.Data.Models
         public AppUser CompanyUser { get; set; } = default!;
         public string AuthorUserId { get; set; } = default!;
         public AppUser AuthorUser { get; set; } = default!;
+        public int? WorkTaskId { get; set; }
+        public WorkTask? WorkTask { get; set; }
     }
 }

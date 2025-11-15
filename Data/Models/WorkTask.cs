@@ -25,6 +25,7 @@ namespace fuszerkomat_api.Data.Models
         public int CategoryId { get; set; }
         public Category Category { get; set; } = default!;
 
+        public Opinion? Opinion { get; set; }
         public ICollection<WorkTaskGallery> Images { get; set; } = new List<WorkTaskGallery>();
         public ICollection<Tag> Tags { get; set; } = new List<Tag>();
         public ICollection<TaskApplication> Applications { get; set; } = new List<TaskApplication>();

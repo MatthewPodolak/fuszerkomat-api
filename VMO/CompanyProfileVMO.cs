@@ -35,7 +35,9 @@ namespace fuszerkomat_api.VMO
         public string? Comment { get; set; }
         public double Rating { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-        public string CreatedByName { get; set; }
+        public string CreatorName { get; set; }
+        public string CreatorPfp { get; set; }
+        public CategoryType Category { get; set; }
     }
 
     public class RealizationVMO
