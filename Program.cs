@@ -16,6 +16,7 @@ using Serilog.Context;
 using System.Text;
 using System.Text.Json.Serialization;
 using Grpc.AspNetCore.Web;
+using fuszerkomat_api.Helpers;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -179,6 +180,8 @@ builder.Services.AddGrpcClient<fuszerkomat_api.Grpc.Chat.ChatClient>((sp, o) =>
 });
 
 var app = builder.Build();
+
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 app.UseRouting();
 app.UseCors();

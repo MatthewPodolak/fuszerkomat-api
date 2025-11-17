@@ -7,6 +7,7 @@ using fuszerkomat_api.VMO;
 using Microsoft.AspNetCore.Identity;
 using System.Diagnostics;
 using System.Security.Claims;
+using static fuszerkomat_api.Helpers.DomainExceptions;
 
 namespace fuszerkomat_api.Services
 {
@@ -31,168 +32,114 @@ namespace fuszerkomat_api.Services
 
         public async Task<Result<AuthTokenVMO>> LoginAsync(LoginVM model, CancellationToken ct = default)
         {
-            try
+            var user = await _userMgr.FindByEmailAsync(model.Email);
+            if (user is null)
             {
-                var user = await _userMgr.FindByEmailAsync(model.Email);
-                if (user is null)
-                {
-                    return Result<AuthTokenVMO>.BadRequest(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty, errors: new() { Error.NotFound(msg: "USER does not exists.") });
-                }               
+                throw new NotFoundException(message: "User with given email does not exists.");
+            }
 
-                var pwd = await _signInMgr.CheckPasswordSignInAsync(user, model.Password, lockoutOnFailure: false);
-                if (!pwd.Succeeded)
-                {
-                    return Result<AuthTokenVMO>.BadRequest(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty, errors: new() { Error.Unauthorized() });
-                }
-                    
-                var ip = _http.HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-                var ua = _http.HttpContext?.Request.Headers.UserAgent.ToString();
+            var pwd = await _signInMgr.CheckPasswordSignInAsync(user, model.Password, lockoutOnFailure: false);
+            if (!pwd.Succeeded)
+            {
+                throw new UnauthorizedException();
+            }
 
-                return await _tokens.CreateTokensAsync(user, ip, ua, ct);
-            }
-            catch (OperationCanceledException ex)
-            {
-                _logger.LogWarning(ex, "LoginAsync was canceled. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
-                return Result<AuthTokenVMO>.Canceled(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "LoginAsync unexcpected error. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
-                return Result<AuthTokenVMO>.Internal(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
-            }
+            var ip = _http.HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            var ua = _http.HttpContext?.Request.Headers.UserAgent.ToString();
+
+            return await _tokens.CreateTokensAsync(user, ip, ua, ct);
         }
 
         public async Task<Result> LogoutAsync(CancellationToken ct = default)
         {
-            try
-            {
-                var userId = _http.HttpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier)
+            var userId = _http.HttpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier)
                              ?? _http.HttpContext?.User.FindFirst("sub")?.Value;
 
-                if (string.IsNullOrEmpty(userId))
-                    return Result.Unauthorized(null, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+            if (string.IsNullOrEmpty(userId))
+                throw new UnauthorizedException();
 
-                var ip = _http.HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-                await _tokens.RevokeAllForUserAsync(userId, ip, ct);
+            var ip = _http.HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            await _tokens.RevokeAllForUserAsync(userId, ip, ct);
 
-                return Result.Ok(null, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
-            }
-            catch (OperationCanceledException ex)
-            {
-                _logger.LogWarning(ex, "LogoutAsync was canceled. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
-                return Result.Canceled(null, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "LogoutAsync unexpected error. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
-                return Result.Internal(null, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
-            }
+            return Result.Ok(null, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
         }
 
         public async Task<Result<AuthTokenVMO>> RefreshAsync(string refreshToken, CancellationToken ct = default)
         {
-            try
-            {
-                var ip = _http.HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-                var ua = _http.HttpContext?.Request.Headers.UserAgent.ToString();
+            var ip = _http.HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            var ua = _http.HttpContext?.Request.Headers.UserAgent.ToString();
 
-                var res = await _tokens.RefreshAsync(refreshToken, ip, ua, ct);
-                return res;
-            }
-            catch (OperationCanceledException ex)
-            {
-                _logger.LogWarning(ex, "RefreshAsync was canceled. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
-                return Result<AuthTokenVMO>.Canceled(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "RefreshAsync unexpected error. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
-                return Result<AuthTokenVMO>.BadRequest(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty, errors: new() { Error.Internal() });
-            }
+            var res = await _tokens.RefreshAsync(refreshToken, ip, ua, ct);
+            return res;
         }
 
         public async Task<Result<AuthTokenVMO>> RegisterAsync(RegisterVM model, CancellationToken ct = default)
         {
-            try
+            var exists = await _userMgr.FindByEmailAsync(model.Email);
+            if (exists != null)
             {
-                var exists = await _userMgr.FindByEmailAsync(model.Email);
-                if(exists != null)
-                {
-                    _logger.LogInformation("User with given email already exists. Email={Email}, Path={Path}, Method={Method}", model.Email, _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
-                    return Result<AuthTokenVMO>.Conflict(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
-                }
+                throw new ConflictException(message: "User with given email already exists.");
+            }
 
-                var user = new AppUser()
-                {
-                    Email = model.Email,
-                    UserName = model.Name ?? model.CompanyName,
-                    AccountType = model.AccountType,
-                    EmailConfirmed = true,
-                };
+            var user = new AppUser()
+            {
+                Email = model.Email,
+                UserName = model.Name ?? model.CompanyName,
+                AccountType = model.AccountType,
+                EmailConfirmed = true,
+            };
 
-                string role = "User";
+            string role = "User";
 
-                switch (model.AccountType)
-                {
-                    case AccountType.User:
-                        var userAcc = new UserProfile()
+            switch (model.AccountType)
+            {
+                case AccountType.User:
+                    var userAcc = new UserProfile()
+                    {
+                        Email = model.Email,
+                        AppUser = user,
+                        Name = model.Name ?? "User" + new Random().Next(1, 9999),
+                    };
+                    user.UserProfile = userAcc;
+                    role = "User";
+                    break;
+                case AccountType.Company:
+                    var companyAcc = new CompanyProfile()
+                    {
+                        AppUser = user,
+                        Email = model.Email,
+                        CompanyName = model.CompanyName ?? "Company" + new Random().Next(1, 9999),
+                        Address = new Address()
                         {
-                            Email = model.Email,
-                            AppUser = user,
-                            Name = model.Name ?? "User" + new Random().Next(1,9999),
-                        };
-                        user.UserProfile = userAcc;
-                        role = "User";
-                        break;
-                    case AccountType.Company:
-                        var companyAcc = new CompanyProfile()
-                        {
-                            AppUser = user,
-                            Email = model.Email,
-                            CompanyName = model.CompanyName ?? "Company" + new Random().Next(1, 9999),
-                            Address = new Address()
-                            {
-                                Country = "Polska",
-                            }
-                        };
-                        user.CompanyProfile = companyAcc;
-                        role = "Company";
-                        break;
-                    default:
-                        _logger.LogCritical("Forbidden accounttype acess point. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
-                        return Result<AuthTokenVMO>.Internal(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
-                }
-
-                Result<AuthTokenVMO>? final = null;
-
-                await _uow.ExecuteInTransactionAsync(async innerCt =>
-                {
-                    var create = await _userMgr.CreateAsync(user, model.Password);
-                    if (!create.Succeeded)
-                        throw new InvalidOperationException(string.Join(" | ", create.Errors.Select(e => e.Description)));
-
-                    var addRole = await _userMgr.AddToRoleAsync(user, role);
-                    if (!addRole.Succeeded)
-                        throw new InvalidOperationException(string.Join(" | ", addRole.Errors.Select(e => e.Description)));
-
-                    var ip = _http.HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-                    var ua = _http.HttpContext?.Request.Headers.UserAgent.ToString();
-                    final = await _tokens.CreateTokensAsync(user, ip, ua, innerCt);
-
-                }, ct);
-
-                return final!;
+                            Country = "Polska",
+                        }
+                    };
+                    user.CompanyProfile = companyAcc;
+                    role = "Company";
+                    break;
+                default:
+                    throw new InternalException();
             }
-            catch(OperationCanceledException ex)
+
+            Result<AuthTokenVMO>? final = null;
+
+            await _uow.ExecuteInTransactionAsync(async innerCt =>
             {
-                _logger.LogWarning(ex, "RegisterAsync was canceled. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
-                return Result<AuthTokenVMO>.Canceled(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "RegisterAsync unexpected error. Path={Path}, Method={Method}", _http.HttpContext?.Request?.Path.Value, _http.HttpContext?.Request?.Method);
-                return Result<AuthTokenVMO>.BadRequest(traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty, errors: new() { Error.Internal() });
-            }
+                var create = await _userMgr.CreateAsync(user, model.Password);
+                if (!create.Succeeded)
+                    throw new InvalidOperationException(string.Join(" | ", create.Errors.Select(e => e.Description)));
+
+                var addRole = await _userMgr.AddToRoleAsync(user, role);
+                if (!addRole.Succeeded)
+                    throw new InvalidOperationException(string.Join(" | ", addRole.Errors.Select(e => e.Description)));
+
+                var ip = _http.HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                var ua = _http.HttpContext?.Request.Headers.UserAgent.ToString();
+                final = await _tokens.CreateTokensAsync(user, ip, ua, innerCt);
+
+            }, ct);
+
+            return final!;
         }
     }
 }

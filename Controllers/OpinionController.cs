@@ -5,6 +5,7 @@ using fuszerkomat_api.VMO;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using static fuszerkomat_api.Helpers.DomainExceptions;
 
 namespace fuszerkomat_api.Controllers
 {
@@ -21,20 +22,21 @@ namespace fuszerkomat_api.Controllers
         [HttpGet("get-all-poss")]
         [Authorize(Policy = "UserOnly")]
         [ProducesResponseType(typeof(Result<List<CompanyToRatePreviewVMO>>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(Result<List<CompanyToRatePreviewVMO>>), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(Result<List<CompanyToRatePreviewVMO>>), StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(typeof(Result<List<CompanyToRatePreviewVMO>>), StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(typeof(Result<List<CompanyToRatePreviewVMO>>), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status499ClientClosedRequest)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetAll([FromQuery] OpinionFiltersVM filters, CancellationToken ct)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (String.IsNullOrEmpty(userId))
             {
-                return Unauthorized(Result.Unauthorized(null, traceId: HttpContext.TraceIdentifier));
+                throw new UnauthorizedException();
             }
 
             var res = await _opinionService.GetAll(filters, userId, ct);
-            return StatusCode(res.Status, res);
+            return Ok(res);
         }
 
         [HttpPost("rate")]
@@ -43,17 +45,18 @@ namespace fuszerkomat_api.Controllers
         [ProducesResponseType(typeof(Result), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(Result), StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(typeof(Result), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status499ClientClosedRequest)]
         [ProducesResponseType(typeof(Result), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> RateCompany([FromBody] RateCompanyVM model, CancellationToken ct)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (String.IsNullOrEmpty(userId))
             {
-                return Unauthorized(Result.Unauthorized(null, traceId: HttpContext.TraceIdentifier));
+                throw new UnauthorizedException();
             }
 
             var res = await _opinionService.RateCompany(model, userId, ct);
-            return StatusCode(res.Status, res);
+            return Ok(res);
         }
 
         [AllowAnonymous]

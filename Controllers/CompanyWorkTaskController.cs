@@ -4,7 +4,9 @@ using fuszerkomat_api.VM;
 using fuszerkomat_api.VMO;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
+using static fuszerkomat_api.Helpers.DomainExceptions;
 
 namespace fuszerkomat_api.Controllers
 {
@@ -21,64 +23,67 @@ namespace fuszerkomat_api.Controllers
         [HttpGet("get-all")]
         [Authorize(Policy = "CompanyOnly")]
         [ProducesResponseType(typeof(Result<List<WorkTaskPreviewVMO>>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(Result<List<WorkTaskPreviewVMO>>), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(Result<List<WorkTaskPreviewVMO>>), StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(typeof(Result<List<WorkTaskPreviewVMO>>), StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(typeof(Result<List<WorkTaskPreviewVMO>>), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status499ClientClosedRequest)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetAll([FromQuery] WorkTaskFilterVM model, CancellationToken ct)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (String.IsNullOrEmpty(userId))
             {
-                return Unauthorized(Result.Unauthorized(null, traceId: HttpContext.TraceIdentifier));
+                throw new UnauthorizedException();
             }
 
             if (!ModelState.IsValid)
             {
-                return BadRequest(Result<List<WorkTaskPreviewVMO>>.BadRequest(errors: ModelState.Values.SelectMany(a => a.Errors).Select(e => new Error(ErrorCode.ValidationFailed, e.ErrorMessage)).ToList(), traceId: HttpContext.TraceIdentifier));
+                throw new ValidationException(string.Join("; ", ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage)));
             }
 
             var res = await _workTaskService.GetWorkTasksAsync(model, userId, ct);
-            return StatusCode(res.Status, res);
+            return Ok(res);
         }
         
         [HttpGet("get-by-id")]
         [Authorize(Policy = "CompanyOnly")]
         [ProducesResponseType(typeof(Result<CompanyWorkTaskVMO>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(Result<CompanyWorkTaskVMO>), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(Result<CompanyWorkTaskVMO>), StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(typeof(Result<CompanyWorkTaskVMO>), StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(typeof(Result<CompanyWorkTaskVMO>), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(Result<CompanyWorkTaskVMO>), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status499ClientClosedRequest)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetById([FromQuery] int id, CancellationToken ct)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (String.IsNullOrEmpty(userId))
             {
-                return Unauthorized(Result<CompanyWorkTaskVMO>.Unauthorized(null, traceId: HttpContext.TraceIdentifier));
+                throw new UnauthorizedException();
             }
 
             var res = await _workTaskService.GetWorkTaskForCompanyAsync(id, userId, ct);
-            return StatusCode(res.Status, res);
+            return Ok(res);
         }
 
         [HttpGet("get-applied")]
         [Authorize(Policy = "CompanyOnly")]
         [ProducesResponseType(typeof(Result<List<CompanyTaskApplyVMO>>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(Result<List<CompanyTaskApplyVMO>>), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(Result<List<CompanyTaskApplyVMO>>), StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(typeof(Result<List<CompanyTaskApplyVMO>>), StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(typeof(Result<List<CompanyTaskApplyVMO>>), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status499ClientClosedRequest)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetApplied([FromQuery] CompanyAppliedFilterVM filter, CancellationToken ct)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (String.IsNullOrEmpty(userId))
             {
-                return Unauthorized(Result<List<CompanyTaskApplyVMO>>.Unauthorized(null, traceId: HttpContext.TraceIdentifier));
+                throw new UnauthorizedException();
             }
 
             var res = await _workTaskService.GetCompanyAppliedTasksAsync(filter, userId, ct);
-            return StatusCode(res.Status, res);
+            return Ok(res);
         }
 
 
@@ -90,17 +95,18 @@ namespace fuszerkomat_api.Controllers
         [ProducesResponseType(typeof(Result), StatusCodes.Status403Forbidden)]
         [ProducesResponseType(typeof(Result), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(Result), StatusCodes.Status409Conflict)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status499ClientClosedRequest)]
         [ProducesResponseType(typeof(Result), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> Apply([FromBody] ApplyToWorkTaskVM model, CancellationToken ct)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (String.IsNullOrEmpty(userId))
             {
-                return Unauthorized(Result.Unauthorized(null, traceId: HttpContext.TraceIdentifier));
+                throw new UnauthorizedException();
             }
 
             var res = await _workTaskService.ApplyForWorkTaskAsync(model, userId, ct);
-            return StatusCode(res.Status, res);
+            return Ok(res);
         }
     }
 }

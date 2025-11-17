@@ -4,6 +4,7 @@ using fuszerkomat_api.VM;
 using fuszerkomat_api.VMO;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.ComponentModel.DataAnnotations;
 
 namespace fuszerkomat_api.Controllers
 {
@@ -20,63 +21,66 @@ namespace fuszerkomat_api.Controllers
         [HttpPost("register")]
         [AllowAnonymous]
         [ProducesResponseType(typeof(Result<AuthTokenVMO>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(Result<AuthTokenVMO>), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(Result<AuthTokenVMO>), StatusCodes.Status409Conflict)]
-        [ProducesResponseType(typeof(Result<AuthTokenVMO>), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status409Conflict)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status499ClientClosedRequest)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> Register([FromBody] RegisterVM model, CancellationToken ct)
         {
             if (!ModelState.IsValid)
             {
-                return BadRequest(Result<AuthTokenVMO>.BadRequest(errors: ModelState.Values.SelectMany(a => a.Errors).Select(e => new Error(ErrorCode.ValidationFailed, e.ErrorMessage)).ToList(), traceId: HttpContext.TraceIdentifier));
+                throw new ValidationException(string.Join("; ", ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage)));
             }
 
             var res = await _authService.RegisterAsync(model, ct);
-            return StatusCode(res.Status, res);
+            return Ok(res);
         }
 
         [HttpPost("login")]
         [AllowAnonymous]
         [ProducesResponseType(typeof(Result<AuthTokenVMO>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(Result<AuthTokenVMO>), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(Result<AuthTokenVMO>), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status499ClientClosedRequest)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> Login([FromBody] LoginVM model, CancellationToken ct)
         {
             if (!ModelState.IsValid)
             {
-                return BadRequest(Result<AuthTokenVMO>.BadRequest(errors: ModelState.Values.SelectMany(a => a.Errors).Select(e => new Error(ErrorCode.ValidationFailed, e.ErrorMessage)).ToList(), traceId: HttpContext.TraceIdentifier));
+                throw new ValidationException(string.Join("; ", ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage)));
             }
 
             var res = await _authService.LoginAsync(model, ct);
-            return StatusCode(res.Status, res);
+            return Ok(res);
         }
 
         [HttpPost("refresh")]
         [AllowAnonymous]
         [ProducesResponseType(typeof(Result<AuthTokenVMO>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(Result<AuthTokenVMO>), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(Result<AuthTokenVMO>), StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(typeof(Result<AuthTokenVMO>), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status499ClientClosedRequest)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> Refresh([FromBody] string refreshTokebn, CancellationToken ct)
         {
             if (string.IsNullOrWhiteSpace(refreshTokebn))
             {
-                return BadRequest(Result<AuthTokenVMO>.BadRequest(traceId: HttpContext.TraceIdentifier));
-
+                throw new ValidationException();
             }
 
             var res = await _authService.RefreshAsync(refreshTokebn, ct);
-            return StatusCode(res.Status, res);
+            return Ok(res);
         }
 
         [HttpPost("logout")]
         [Authorize]
         [ProducesResponseType(typeof(Result), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(Result), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status499ClientClosedRequest)]
         [ProducesResponseType(typeof(Result), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> Logout(CancellationToken ct)
         {
             var res = await _authService.LogoutAsync(ct);
-            return StatusCode(res.Status, res);
+            return Ok(res);
         }
     }
 }
