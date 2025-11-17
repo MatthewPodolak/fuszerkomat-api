@@ -5,7 +5,9 @@ using fuszerkomat_api.VM;
 using fuszerkomat_api.VMO;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
+using static fuszerkomat_api.Helpers.DomainExceptions;
 
 namespace fuszerkomat_api.Controllers
 {
@@ -22,39 +24,42 @@ namespace fuszerkomat_api.Controllers
         [HttpGet("get-own-profile")]
         [Authorize]
         [ProducesResponseType(typeof(Result<ProfileVMO>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(Result<ProfileVMO>), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(Result<ProfileVMO>), StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(typeof(Result<ProfileVMO>), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(Result<ProfileVMO>), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status499ClientClosedRequest)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetOwnProfileData(CancellationToken ct)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             var accountType = User.FindFirstValue("account_type");
             if (String.IsNullOrEmpty(userId) || string.IsNullOrEmpty(accountType))
             {
-                return Unauthorized(Result.Unauthorized(null, traceId: HttpContext.TraceIdentifier));
+                throw new UnauthorizedException();
             }
 
             var res = await _accountService.GetOwnProfileDataAsync(userId, accountType, ct);
-            return StatusCode(res.Status, res);
+            return Ok(res);
         }
 
         [HttpGet("get-company-profile")]
         [Authorize]
         [ProducesResponseType(typeof(Result<CompanyProfileVMO>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(Result<CompanyProfileVMO>), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(Result<CompanyProfileVMO>), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(Result<CompanyProfileVMO>), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status499ClientClosedRequest)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetCompanyProfile([FromQuery] string id, CancellationToken ct)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (String.IsNullOrEmpty(userId))
             {
-                return Unauthorized(Result.Unauthorized(null, traceId: HttpContext.TraceIdentifier));
+                throw new UnauthorizedException();
             }
 
             var res = await _accountService.GetCompanyProfileAsync(id, ct);
-            return StatusCode(res.Status, res);
+            return Ok(res);
         }
 
         [HttpPatch("profile-informaion")]
@@ -62,6 +67,7 @@ namespace fuszerkomat_api.Controllers
         [ProducesResponseType(typeof(Result), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(Result), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(Result), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status499ClientClosedRequest)]
         [ProducesResponseType(typeof(Result), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> ProfileInformation([FromForm] UpdateProfileInformationVM model, CancellationToken ct)
         {
@@ -69,7 +75,7 @@ namespace fuszerkomat_api.Controllers
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (String.IsNullOrEmpty(accountType) || String.IsNullOrEmpty(userId))
             {
-                return Unauthorized(Result.Unauthorized(null, traceId: HttpContext.TraceIdentifier));
+                throw new UnauthorizedException();
             }
 
             var res = new Result();
@@ -77,18 +83,18 @@ namespace fuszerkomat_api.Controllers
             switch (accountType)
             {
                 case "User":
-                    if(model.UserProfileInfo == null) { return BadRequest(Result.BadRequest(new List<Error>() { Error.Validation(msg: "User profile missing. Nothing to update.") }, traceId: HttpContext.TraceIdentifier)); }
+                    if (model.UserProfileInfo == null) { throw new ValidationException("User profile missing. Nothing to update."); }
                     res = await _accountService.UpdateUserInformation(userId, model.UserProfileInfo, ct);
                     break;
                 case "Company":
-                    if (model.CompanyProfileInfo == null) { return BadRequest(Result.BadRequest(new List<Error>() { Error.Validation(msg: "Company profile missing. Nothing to update.") }, traceId: HttpContext.TraceIdentifier)); }
+                    if (model.CompanyProfileInfo == null) { throw new ValidationException("Company profile missing. Nothing to update."); }
                     res = await _accountService.UpdateCompanyInfrormation(userId, model.CompanyProfileInfo, ct);
                     break;
                 default:
-                    return Unauthorized(Result.Unauthorized(null, traceId: HttpContext.TraceIdentifier));
+                    throw new UnauthorizedException();
             }
 
-            return StatusCode(res.Status, res);
+            return Ok(res);
         }
 
         [HttpDelete("delete-account")]
@@ -96,17 +102,18 @@ namespace fuszerkomat_api.Controllers
         [ProducesResponseType(typeof(Result), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(Result), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(Result), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(Result), StatusCodes.Status499ClientClosedRequest)]
         [ProducesResponseType(typeof(Result), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> DeleteAccount(CancellationToken ct)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (String.IsNullOrEmpty(userId))
             {
-                return Unauthorized(Result.Unauthorized(null, traceId: HttpContext.TraceIdentifier));
+                throw new UnauthorizedException();
             }
 
             var res = await _accountService.DeleteAccount(userId, ct);
-            return StatusCode(res.Status, res);
+            return Ok(res);
         }
     }
 }
