@@ -90,11 +90,13 @@ namespace fuszerkomat_api.Services
             {
                 newWorkTask.Lattitude = Convert.ToDouble(model.Location.Latitude, CultureInfo.InvariantCulture);
                 newWorkTask.Longttitude = Convert.ToDouble(model.Location.Longtitude, CultureInfo.InvariantCulture);
+                newWorkTask.LocationName = model.Location.Name ?? string.Empty;
                 newWorkTask.Location = model.Location.Name ?? string.Empty;
             }
             else
             {
                 newWorkTask.Location = "Polska";
+                newWorkTask.LocationName = "Polska";
                 newWorkTask.Lattitude = 0;
                 newWorkTask.Longttitude = 0;
             }
@@ -217,7 +219,7 @@ namespace fuszerkomat_api.Services
                     var lat = item.Location?.Latitude;
                     var lon = item.Location?.Longtitude;
 
-                    if (lat.HasValue && lon.HasValue && item.Location != null)
+                    if (lat.HasValue && lon.HasValue && item.Location != null && (lat.Value != 0 && lon.Value != 0))
                     {
                         item.Location.DistanceFrom = GeoUtils.GetDistanceBetween(userLat.Value, userLon.Value, lat.Value, lon.Value);
                     }
