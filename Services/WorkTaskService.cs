@@ -268,6 +268,8 @@ namespace fuszerkomat_api.Services
                 Name = workTask.Name,
                 ExpectedRealisationTime = workTask.ExpectedRealisationTime,
                 Own = workTask.CreatedByUserId == userId,
+                Category = workTask.Category.CategoryType,
+                Tags = workTask.Tags.Select(a => a.TagType).ToList(),
                 RequestingUserDataVMO = new WorkTaskRequestingUserDataVMO
                 {
                     Name = workTask.CreatedByUser.UserProfile?.Name,

@@ -136,6 +136,7 @@ namespace fuszerkomat_api.Data.Models
         SerwisOpon,
         Blacharz,
         Diagnosta,
+        Elektryka,
 
         // --- Sprzątanie ---
         SprzątanieDomów,
