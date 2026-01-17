@@ -1,5 +1,6 @@
 ﻿using fuszerkomat_api.Data;
 using fuszerkomat_api.Data.Models;
+using fuszerkomat_api.Data.Models.Chat;
 using fuszerkomat_api.Helpers;
 using fuszerkomat_api.Interfaces;
 using fuszerkomat_api.Repo;
@@ -7,6 +8,7 @@ using fuszerkomat_api.VM;
 using fuszerkomat_api.VMO;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
+using MongoDB.Driver;
 using static fuszerkomat_api.Helpers.DomainExceptions;
 
 namespace fuszerkomat_api.Services
@@ -21,6 +23,8 @@ namespace fuszerkomat_api.Services
         private readonly ITokenService _tokenService;
         private readonly ILogger<IAccountService> _logger;
         private readonly IHttpContextAccessor _http;
+        private readonly IMongoCollection<Conversation> _conversationCollection;
+        private readonly IMongoCollection<Message> _messageCollection;
         public AccountService
             (
                 IRepository<AppUser> userRepo,
@@ -30,7 +34,8 @@ namespace fuszerkomat_api.Services
                 IUnitOfWork uow, 
                 ITokenService tokenService,
                 ILogger<IAccountService> logger, 
-                IHttpContextAccessor http
+                IHttpContextAccessor http,
+                IMongoDatabase mongoDb
             )
         {
             _userRepo = userRepo;
@@ -41,6 +46,8 @@ namespace fuszerkomat_api.Services
             _tokenService = tokenService;
             _logger = logger;
             _http = http;
+            _conversationCollection = mongoDb.GetCollection<Conversation>("conversations");
+            _messageCollection = mongoDb.GetCollection<Message>("messages");
         }
         public async Task<Result<ProfileVMO>> GetOwnProfileDataAsync(string userId, string accType, CancellationToken ct)
         {
@@ -333,6 +340,8 @@ namespace fuszerkomat_api.Services
                 await _appRepo.Query().Where(a => a.CompanyUserId == userId).ExecuteDeleteAsync(innerCt);
                 await _taskRepo.Query().Where(t => t.CreatedByUserId == userId).ExecuteDeleteAsync(innerCt);
 
+                await DeleteUserConversationsAsync(userId, innerCt);
+
                 if (!string.IsNullOrWhiteSpace(user.UserProfile?.Img) &&
                     !string.Equals(user.UserProfile.Img, "/users/base-img.png", StringComparison.OrdinalIgnoreCase))
                 {
@@ -379,6 +388,25 @@ namespace fuszerkomat_api.Services
             }
 
             return Result.Ok(null, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
+        }
+
+        private async Task DeleteUserConversationsAsync(string userId, CancellationToken ct)
+        {
+            var filter = Builders<Conversation>.Filter.Or(
+                Builders<Conversation>.Filter.Eq(c => c.OwnerUserId, userId),
+                Builders<Conversation>.Filter.Eq(c => c.CompanyUserId, userId)
+            );
+
+            var conversations = await _conversationCollection.Find(filter).ToListAsync(ct);
+
+            if (conversations.Count > 0)
+            {
+                var conversationIds = conversations.Select(c => c.Id).ToList();
+                var messageFilter = Builders<Message>.Filter.In(m => m.ConversationId, conversationIds);
+                await _messageCollection.DeleteManyAsync(messageFilter, ct);
+
+                await _conversationCollection.DeleteManyAsync(filter, ct);
+            }
         }
     }
 }

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using fuszerkomat_api.Data;
 
@@ -11,9 +12,11 @@ using fuszerkomat_api.Data;
 namespace fuszerkomat_api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260117174700_sync")]
+    partial class sync
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1155,132 +1158,126 @@ namespace fuszerkomat_api.Migrations
                         new
                         {
                             Id = 102,
-                            CategoryType = 11,
-                            TagType = 15
-                        },
-                        new
-                        {
-                            Id = 103,
                             CategoryType = 12,
                             TagType = 102
                         },
                         new
                         {
-                            Id = 104,
+                            Id = 103,
                             CategoryType = 12,
                             TagType = 103
                         },
                         new
                         {
-                            Id = 105,
+                            Id = 104,
                             CategoryType = 12,
                             TagType = 104
                         },
                         new
                         {
-                            Id = 106,
+                            Id = 105,
                             CategoryType = 12,
                             TagType = 105
                         },
                         new
                         {
-                            Id = 107,
+                            Id = 106,
                             CategoryType = 12,
                             TagType = 106
                         },
                         new
                         {
-                            Id = 108,
+                            Id = 107,
                             CategoryType = 12,
                             TagType = 107
                         },
                         new
                         {
-                            Id = 109,
+                            Id = 108,
                             CategoryType = 13,
                             TagType = 108
                         },
                         new
                         {
-                            Id = 110,
+                            Id = 109,
                             CategoryType = 13,
                             TagType = 109
                         },
                         new
                         {
-                            Id = 111,
+                            Id = 110,
                             CategoryType = 13,
                             TagType = 110
                         },
                         new
                         {
-                            Id = 112,
+                            Id = 111,
                             CategoryType = 13,
                             TagType = 111
                         },
                         new
                         {
-                            Id = 113,
+                            Id = 112,
                             CategoryType = 13,
                             TagType = 112
                         },
                         new
                         {
-                            Id = 114,
+                            Id = 113,
                             CategoryType = 13,
                             TagType = 113
                         },
                         new
                         {
-                            Id = 115,
+                            Id = 114,
                             CategoryType = 13,
                             TagType = 114
                         },
                         new
                         {
-                            Id = 116,
+                            Id = 115,
                             CategoryType = 14,
                             TagType = 115
                         },
                         new
                         {
-                            Id = 117,
+                            Id = 116,
                             CategoryType = 14,
                             TagType = 116
                         },
                         new
                         {
-                            Id = 118,
+                            Id = 117,
                             CategoryType = 14,
                             TagType = 117
                         },
                         new
                         {
-                            Id = 119,
+                            Id = 118,
                             CategoryType = 14,
                             TagType = 118
                         },
                         new
                         {
-                            Id = 120,
+                            Id = 119,
                             CategoryType = 14,
                             TagType = 119
                         },
                         new
                         {
-                            Id = 121,
+                            Id = 120,
                             CategoryType = 14,
                             TagType = 120
                         },
                         new
                         {
-                            Id = 122,
+                            Id = 121,
                             CategoryType = 14,
                             TagType = 121
                         },
                         new
                         {
-                            Id = 123,
+                            Id = 122,
                             CategoryType = 15,
                             TagType = 122
                         });
