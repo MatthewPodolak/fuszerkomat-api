@@ -239,6 +239,7 @@ namespace fuszerkomat_api.Data
                 new() { Id = tagId++, CategoryType = CategoryType.Motoryzacja, TagType = TagType.SerwisOpon },
                 new() { Id = tagId++, CategoryType = CategoryType.Motoryzacja, TagType = TagType.Blacharz },
                 new() { Id = tagId++, CategoryType = CategoryType.Motoryzacja, TagType = TagType.Diagnosta },
+                new() { Id = tagId++, CategoryType = CategoryType.Motoryzacja, TagType = TagType.Elektryk },
                 new() { Id = tagId++, CategoryType = CategoryType.Sprzątanie, TagType = TagType.SprzątanieDomów },
                 new() { Id = tagId++, CategoryType = CategoryType.Sprzątanie, TagType = TagType.SprzątanieBiur },
                 new() { Id = tagId++, CategoryType = CategoryType.Sprzątanie, TagType = TagType.MycieOkien },
