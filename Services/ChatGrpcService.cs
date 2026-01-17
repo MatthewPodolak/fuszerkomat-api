@@ -6,7 +6,6 @@ using MongoDB.Driver;
 using fuszerkomat_api.Data;
 using fuszerkomat_api.Data.Models.Chat;
 using fuszerkomat_api.Grpc;
-using Microsoft.Extensions.Logging;
 
 namespace fuszerkomat_api.Services
 {
@@ -66,14 +65,17 @@ namespace fuszerkomat_api.Services
             {
                 await _chat.Conversations.InsertOneAsync(session, convo, cancellationToken: ct);
 
-                if (!string.IsNullOrWhiteSpace(request.InitialMessage))
+                if (!string.IsNullOrWhiteSpace(request.InitialEncryptedPayload))
                 {
                     var firstMsg = new fuszerkomat_api.Data.Models.Chat.Message
                     {
                         Id = ObjectId.GenerateNewId(),
                         ConversationId = convo.Id,
                         SenderId = request.CompanyUserId,
-                        Text = request.InitialMessage,
+                        EncryptedPayload = request.InitialEncryptedPayload,
+                        KeyForRecipient = request.InitialKeyForRecipient,
+                        KeyForSender = request.InitialKeyForSender,
+                        Iv = request.InitialIv,
                         CreatedAt = now
                     };
                     await _chat.Messages.InsertOneAsync(session, firstMsg, cancellationToken: ct);
@@ -108,7 +110,7 @@ namespace fuszerkomat_api.Services
                 throw new RpcException(new Status(StatusCode.InvalidArgument, "conversation_id must be a valid ObjectId"));
             if (string.IsNullOrWhiteSpace(request.SenderId))
                 throw new RpcException(new Status(StatusCode.InvalidArgument, "sender_id is required"));
-            if (string.IsNullOrWhiteSpace(request.Text))
+            if (string.IsNullOrWhiteSpace(request.EncryptedPayload))
                 throw new RpcException(new Status(StatusCode.InvalidArgument, "text is required"));
 
             var ct = context.CancellationToken;
@@ -123,7 +125,10 @@ namespace fuszerkomat_api.Services
                 Id = ObjectId.GenerateNewId(),
                 ConversationId = convId,
                 SenderId = request.SenderId,
-                Text = request.Text,
+                EncryptedPayload = request.EncryptedPayload,
+                KeyForRecipient = request.KeyForRecipient,
+                KeyForSender = request.KeyForSender,
+                Iv = request.Iv,
                 CreatedAt = now
             };
 
@@ -189,7 +194,10 @@ namespace fuszerkomat_api.Services
             {
                 MessageId = m.Id.ToString(),
                 SenderId = m.SenderId,
-                Text = m.Text,
+                EncryptedPayload = m.EncryptedPayload,
+                KeyForRecipient = m.KeyForRecipient,
+                KeyForSender = m.KeyForSender,
+                Iv = m.Iv,
                 CreatedAt = m.CreatedAt.ToString("o", CultureInfo.InvariantCulture)
             }));
 
@@ -237,7 +245,10 @@ namespace fuszerkomat_api.Services
                     {
                         MessageId = m.Id.ToString(),
                         SenderId = m.SenderId,
-                        Text = m.Text,
+                        EncryptedPayload = m.EncryptedPayload,
+                        KeyForRecipient = m.KeyForRecipient,
+                        KeyForSender = m.KeyForSender,
+                        Iv = m.Iv,
                         CreatedAt = m.CreatedAt.ToString("o", CultureInfo.InvariantCulture)
                     });
                 }
@@ -265,7 +276,10 @@ namespace fuszerkomat_api.Services
                 {
                     MessageId = doc.Id.ToString(),
                     SenderId = doc.SenderId,
-                    Text = doc.Text,
+                    EncryptedPayload = doc.EncryptedPayload,
+                    KeyForRecipient = doc.KeyForRecipient,
+                    KeyForSender = doc.KeyForSender,
+                    Iv = doc.Iv,
                     CreatedAt = doc.CreatedAt.ToString("o", CultureInfo.InvariantCulture)
                 });
             }

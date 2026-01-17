@@ -27,6 +27,7 @@ namespace fuszerkomat_api.VMO
         public string? Email { get; set; }
         public string? Phone { get; set; }
         public string? Pfp { get; set; }
+        public string PublicKey { get; set; }
     }
 
     public class ApplicantDataVMO

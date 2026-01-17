@@ -47,7 +47,12 @@ namespace fuszerkomat_api.Services
             var ip = _http.HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "unknown";
             var ua = _http.HttpContext?.Request.Headers.UserAgent.ToString();
 
-            return await _tokens.CreateTokensAsync(user, ip, ua, ct);
+            var res = await _tokens.CreateTokensAsync(user, ip, ua, ct);
+            res.Data.PrivateKey = user.PrivateKey;
+            res.Data.PrivateSignKey = user.PrivateSignKey;
+            res.Data.PublicKey = user.PublicKey;
+
+            return res;
         }
 
         public async Task<Result> LogoutAsync(CancellationToken ct = default)
@@ -87,6 +92,10 @@ namespace fuszerkomat_api.Services
                 UserName = model.Name ?? model.CompanyName,
                 AccountType = model.AccountType,
                 EmailConfirmed = true,
+                PublicKey = model.PublicKey,
+                PrivateKey = model.PrivateKey,
+                PrivateSignKey = model.PrivateSignKey,
+                PublicSignKey = model.PublicSignKey,
             };
 
             string role = "User";

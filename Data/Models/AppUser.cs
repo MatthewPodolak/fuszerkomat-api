@@ -5,6 +5,10 @@ namespace fuszerkomat_api.Data.Models
 {
     public class AppUser : IdentityUser
     {
+        public string PublicKey { get; set; } = string.Empty;
+        public string PrivateKey { get; set; } = string.Empty; //own enc
+        public string PublicSignKey { get; set; } = string.Empty;
+        public string PrivateSignKey {  get; set; } = string.Empty; //own enc
         public AccountType AccountType { get; set; }
         public UserProfile? UserProfile { get; set; }
         public CompanyProfile? CompanyProfile { get; set; }

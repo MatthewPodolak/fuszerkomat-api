@@ -273,7 +273,8 @@ namespace fuszerkomat_api.Services
                     Name = workTask.CreatedByUser.UserProfile?.Name,
                     Email = workTask.CreatedByUser.UserProfile?.Email,
                     Phone = workTask.CreatedByUser.UserProfile?.PhoneNumber ?? string.Empty,
-                    Pfp = workTask.CreatedByUser.UserProfile?.Img
+                    Pfp = workTask.CreatedByUser.UserProfile?.Img,
+                    PublicKey = workTask.CreatedByUser.PublicKey,
                 },
                 Applicants = workTask.Applications.Select(a => new ApplicantDataVMO
                 {
@@ -325,7 +326,8 @@ namespace fuszerkomat_api.Services
                     Name = workTask.CreatedByUser.UserProfile?.Name,
                     Email = workTask.CreatedByUser.UserProfile?.Email,
                     Phone = workTask.CreatedByUser.UserProfile?.PhoneNumber ?? string.Empty,
-                    Pfp = workTask.CreatedByUser.UserProfile?.Img
+                    Pfp = workTask.CreatedByUser.UserProfile?.Img,
+                    PublicKey = workTask.CreatedByUser.PublicKey
                 },
                 Applicants = workTask.Applications.Select(a => new ApplicantDataVMO
                 {
@@ -374,7 +376,10 @@ namespace fuszerkomat_api.Services
                         TaskId = workTask.Id,
                         OwnerUserId = workTask.CreatedByUserId,
                         CompanyUserId = companyId,
-                        InitialMessage = model.InitialMessage ?? string.Empty
+                        InitialEncryptedPayload = model.MessageVM.EncryptedPayload,
+                        InitialKeyForRecipient = model.MessageVM.KeyForRecipient,
+                        InitialKeyForSender = model.MessageVM.KeyForSender,
+                        InitialIv = model.MessageVM.Iv,
                     },
                     deadline: deadline,
                     cancellationToken: ct);
@@ -393,7 +398,7 @@ namespace fuszerkomat_api.Services
                 ChatId = chatResp.ConversationId,
                 CompanyUserId = companyId,
                 CreatedAtUtc = DateTime.UtcNow,
-                Message = model.InitialMessage,
+                Message = model.MessageVM.EncryptedPayload,
                 Status = ApplicationStatus.Applied,
                 WorkTaskId = workTask.Id,
             };

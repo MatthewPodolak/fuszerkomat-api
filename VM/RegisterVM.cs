@@ -20,5 +20,17 @@ namespace fuszerkomat_api.VM
 
         public string? Name { get; set; }
         public string? CompanyName { get; set; }
+
+        [Required]
+        public string PublicKey { get; set; }
+
+        [Required]
+        public string PrivateKey { get; set; } //this is encrypted ofc.
+
+        [Required]
+        public string PublicSignKey { get; set; }
+
+        [Required]
+        public string PrivateSignKey { get; set; } //talso encrypted
     }
 }
