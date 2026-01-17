@@ -3,6 +3,6 @@
     public class ApplyToWorkTaskVM
     {
         public int WorkTaskId { get; set; }
-        public string InitialMessage { get; set; }
+        public MessageVM MessageVM { get; set; }
     }
 }

@@ -64,7 +64,7 @@ namespace fuszerkomat_api.Services
                 .Distinct()
                 .ToList();
 
-            List<(string Id, string Name, string Img)> counterpartData;
+            List<(string Id, string Name, string PublicKey, string PublicSignKey, string Img)> counterpartData;
 
             if (user.AccountType == AccountType.User)
             {
@@ -72,9 +72,11 @@ namespace fuszerkomat_api.Services
                     .AsNoTracking()
                     .Where(u => counterpartIds.Contains(u.Id) && u.AccountType == AccountType.Company)
                     .Include(u => u.CompanyProfile)
-                    .Select(u => new ValueTuple<string, string, string>(
+                    .Select(u => new ValueTuple<string, string, string, string, string>(
                         u.Id,
                         u.CompanyProfile!.CompanyName,
+                        u.PublicKey ?? string.Empty,
+                        u.PublicSignKey ?? string.Empty,
                         u.CompanyProfile!.Img))
                     .ToListAsync(ct);
             }
@@ -84,9 +86,11 @@ namespace fuszerkomat_api.Services
                     .AsNoTracking()
                     .Where(u => counterpartIds.Contains(u.Id) && u.AccountType == AccountType.User)
                     .Include(u => u.UserProfile)
-                    .Select(u => new ValueTuple<string, string, string>(
+                    .Select(u => new ValueTuple<string, string, string, string, string>(
                         u.Id,
                         u.UserProfile!.Name,
+                        u.PublicKey ?? string.Empty,
+                        u.PublicSignKey ?? string.Empty,
                         u.UserProfile!.Img))
                     .ToListAsync(ct);
             }
@@ -96,21 +100,27 @@ namespace fuszerkomat_api.Services
             var convoIds = convos.Select(c => c.Id).ToList();
 
             var lastMsgs = await _chat.Messages.Aggregate()
-            .Match(Builders<Message>.Filter.In(m => m.ConversationId, convoIds))
-            .SortByDescending(m => m.CreatedAt)
-            .Group(m => m.ConversationId, g => new
-            {
-                ConversationId = g.Key,
-                Msg = g.First().Text,
-                SenderId = g.First().SenderId
-            })
-            .ToListAsync(ct);
+                .Match(Builders<Message>.Filter.In(m => m.ConversationId, convoIds))
+                .SortByDescending(m => m.CreatedAt)
+                .Group(m => m.ConversationId, g => new
+                {
+                    ConversationId = g.Key,
+                    EncryptedPayload = g.First().EncryptedPayload,
+                    KeyForRecipient = g.First().KeyForRecipient,
+                    KeyForSender = g.First().KeyForSender,
+                    Iv = g.First().Iv,
+                    SenderId = g.First().SenderId
+                })
+                .ToListAsync(ct);
 
             var lastMsgDict = lastMsgs.ToDictionary(
                 x => x.ConversationId,
                 x => new LastChatMsgVMO
                 {
-                    Msg = x.Msg,
+                    EncryptedPayload = x.EncryptedPayload,
+                    KeyForRecipient = x.KeyForRecipient,
+                    KeyForSender = x.KeyForSender,
+                    Iv = x.Iv,
                     Own = x.SenderId == userId
                 });
 
@@ -152,6 +162,8 @@ namespace fuszerkomat_api.Services
                     CorespondentId = otherId,
                     CorespondentName = hasOther ? (other.Name ?? "Unknown") : "Unknown",
                     CorespondentImg = hasOther ? (other.Img ?? string.Empty) : string.Empty,
+                    CorespondentPublicKey = hasOther ? other.PublicKey : string.Empty,
+                    CorespondentPublicSignKey = hasOther ? other.PublicSignKey : string.Empty,
                     IsArchived = c.IsArchive,
                     LastMsg = lm,
                     TaskData = td,

@@ -8,6 +8,8 @@ namespace fuszerkomat_api.VMO
         public string CorespondentId { get; set; }
         public string CorespondentImg {  get; set; }
         public string CorespondentName { get; set; }
+        public string CorespondentPublicKey { get; set; }
+        public string CorespondentPublicSignKey { get; set; }
         public bool IsArchived { get; set; } = false;
         public LastChatMsgVMO? LastMsg {  get; set; }
         public TaskChatVMO? TaskData { get; set; }        
@@ -15,8 +17,11 @@ namespace fuszerkomat_api.VMO
 
     public class LastChatMsgVMO
     {
-        public string Msg { get; set; }
-        public bool Own {  get; set; }
+        public string EncryptedPayload { get; set; } = string.Empty;
+        public string KeyForRecipient { get; set; } = string.Empty;
+        public string KeyForSender { get; set; } = string.Empty;
+        public string Iv { get; set; } = string.Empty;
+        public bool Own { get; set; }
     }
 
     public class TaskChatVMO
