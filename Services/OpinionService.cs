@@ -1,7 +1,6 @@
 ﻿using fuszerkomat_api.Data;
 using fuszerkomat_api.Data.Models;
 using fuszerkomat_api.Interfaces;
-using fuszerkomat_api.Repo;
 using fuszerkomat_api.VM;
 using fuszerkomat_api.VMO;
 using Google.Protobuf.WellKnownTypes;
@@ -13,18 +12,14 @@ namespace fuszerkomat_api.Services
 {
     public class OpinionService : IOpinionService
     {
-        private readonly IRepository<WorkTask> _workTaskRepo;
-        private readonly IRepository<Opinion> _opinionRepo;
-        private readonly IUnitOfWork _uow;
+        private readonly AppDbContext _context;
 
         private readonly ILogger<IOpinionService> _logger;
         private readonly IHttpContextAccessor _http;
 
-        public OpinionService(IRepository<WorkTask> workTaskRepo, IRepository<Opinion> opinionRepo, IUnitOfWork uow, ILogger<IOpinionService> logger, IHttpContextAccessor http)
+        public OpinionService(AppDbContext context, ILogger<IOpinionService> logger, IHttpContextAccessor http)
         {
-            _workTaskRepo = workTaskRepo;
-            _opinionRepo = opinionRepo;
-            _uow = uow;
+            _context = context;
             _logger = logger;
             _http = http;
         }
@@ -34,7 +29,7 @@ namespace fuszerkomat_api.Services
             int page = filters.PageNumber <= 0 ? 1 : filters.PageNumber;
             int pageSize = filters.PageSize <= 0 ? 10 : filters.PageSize;
 
-            var workTasks = await _workTaskRepo.Query().AsNoTracking()
+            var workTasks = await _context.WorkTasks.AsNoTracking()
                 .Where(t => t.CreatedByUserId == userId && t.Status == Status.Completed)
                 .Include(t => t.Applications)
                     .ThenInclude(ap => ap.CompanyUser)
@@ -43,7 +38,6 @@ namespace fuszerkomat_api.Services
                 .Include(t => t.Tags)
                 .Include(t => t.Opinion)
                 .ToListAsync(ct);
-
 
             var projected = workTasks.Select(t =>
             {
@@ -116,7 +110,7 @@ namespace fuszerkomat_api.Services
 
         public async Task<Result> RateCompany(RateCompanyVM model, string userId, CancellationToken ct)
         {
-            var workTask = await _workTaskRepo.Query().Include(a => a.Applications).Include(d => d.Opinion)
+            var workTask = await _context.WorkTasks.Include(a => a.Applications).Include(d => d.Opinion)
                 .Where(a => a.Status == Status.Completed && a.CreatedByUserId == userId).FirstOrDefaultAsync(a => a.Id == model.TaskId, ct);
 
             if (workTask == null)
@@ -146,8 +140,8 @@ namespace fuszerkomat_api.Services
                 WorkTaskId = model.TaskId
             };
 
-            _opinionRepo.Add(opinion);
-            await _uow.SaveChangesAsync(ct);
+            _context.Opinions.Add(opinion);
+            await _context.SaveChangesAsync(ct);
 
             return Result.Ok(errors: null, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
         }

@@ -1,8 +1,10 @@
 using fuszerkomat_api.Data;
 using fuszerkomat_api.Data.Models;
+using fuszerkomat_api.Helpers;
 using fuszerkomat_api.Interfaces;
-using fuszerkomat_api.Repo;
 using fuszerkomat_api.Services;
+using Grpc.AspNetCore.Web;
+using Grpc.Net.Client.Web;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -15,17 +17,16 @@ using Serilog;
 using Serilog.Context;
 using System.Text;
 using System.Text.Json.Serialization;
-using Grpc.AspNetCore.Web;
-using fuszerkomat_api.Helpers;
 
 var builder = WebApplication.CreateBuilder(args);
+//builder.WebHost.UseUrls("http://0.0.0.0:5000");
 
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>
     {
         policy
-            .WithOrigins("http://localhost:5173", "https://localhost:5173")
+            .WithOrigins("http://localhost:5173", "https://localhost:5173", "https://fuszerkomat.ovh", "https://www.fuszerkomat.ovh")
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();
@@ -34,7 +35,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy("GrpcWeb", policy =>
     {
         policy
-            .WithOrigins("http://localhost:5112", "https://abgasfafasfa.com", "https://localhost:7047", "http://localhost:5173", "https://localhost:5173")
+            .WithOrigins("http://localhost:5112", "https://abgasfafasfa.com", "https://localhost:7047", "http://localhost:5173", "https://localhost:5173", "https://fuszerkomat.ovh", "https://www.fuszerkomat.ovh")
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();
@@ -149,8 +150,6 @@ builder.Services.AddScoped<IAccountService, AccountService>();
 builder.Services.AddScoped<IWorkTaskService, WorkTaskService>();
 builder.Services.AddScoped<IChatService, ChatService>();
 builder.Services.AddScoped<IOpinionService, OpinionService>();
-builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
-builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
@@ -177,7 +176,12 @@ builder.Services.AddGrpcClient<fuszerkomat_api.Grpc.Chat.ChatClient>((sp, o) =>
 {
     var cfg = sp.GetRequiredService<IConfiguration>();
     o.Address = new Uri(cfg["Grpc:ChatUrl"]!);
+})
+.ConfigurePrimaryHttpMessageHandler(() =>
+{
+    return new GrpcWebHandler(GrpcWebMode.GrpcWeb, new HttpClientHandler());
 });
+
 
 var app = builder.Build();
 
@@ -202,6 +206,10 @@ static async Task SeedRolesAsync(IServiceProvider sp)
 
 using (var scope = app.Services.CreateScope())
 {
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+    await db.Database.MigrateAsync();
+
     await SeedRolesAsync(scope.ServiceProvider);
 }
 
@@ -217,7 +225,10 @@ app.Use(async (ctx, next) =>
 app.UseSerilogRequestLogging();
 
 
-app.UseHttpsRedirection();
+if (app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 
 app.UseAuthentication();
 app.UseAuthorization();

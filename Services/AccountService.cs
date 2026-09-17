@@ -3,7 +3,6 @@ using fuszerkomat_api.Data.Models;
 using fuszerkomat_api.Data.Models.Chat;
 using fuszerkomat_api.Helpers;
 using fuszerkomat_api.Interfaces;
-using fuszerkomat_api.Repo;
 using fuszerkomat_api.VM;
 using fuszerkomat_api.VMO;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -15,40 +14,24 @@ namespace fuszerkomat_api.Services
 {
     public class AccountService : IAccountService
     {
-        private readonly IRepository<AppUser> _userRepo;
-        private readonly IRepository<Opinion> _opinionRepo;
-        private readonly IRepository<WorkTask> _taskRepo;
-        private readonly IRepository<TaskApplication> _appRepo;
-        private readonly IUnitOfWork _uow;
+        private readonly AppDbContext _context;
+
         private readonly ITokenService _tokenService;
         private readonly ILogger<IAccountService> _logger;
         private readonly IHttpContextAccessor _http;
         private readonly IMongoCollection<Conversation> _conversationCollection;
         private readonly IMongoCollection<Message> _messageCollection;
-        public AccountService
-            (
-                IRepository<AppUser> userRepo,
-                IRepository<Opinion> opinionRepo,
-                IRepository<WorkTask> taskRepo,
-                IRepository<TaskApplication> appRepo,
-                IUnitOfWork uow, 
-                ITokenService tokenService,
-                ILogger<IAccountService> logger, 
-                IHttpContextAccessor http,
-                IMongoDatabase mongoDb
-            )
+
+        public AccountService(AppDbContext context, ITokenService tokenService, ILogger<IAccountService> logger, IHttpContextAccessor http, IMongoDatabase mongoDb)
         {
-            _userRepo = userRepo;
-            _taskRepo = taskRepo;
-            _appRepo = appRepo;
-            _opinionRepo = opinionRepo;
-            _uow = uow;
+            _context = context;
             _tokenService = tokenService;
             _logger = logger;
             _http = http;
             _conversationCollection = mongoDb.GetCollection<Conversation>("conversations");
             _messageCollection = mongoDb.GetCollection<Message>("messages");
         }
+
         public async Task<Result<ProfileVMO>> GetOwnProfileDataAsync(string userId, string accType, CancellationToken ct)
         {
             var vmo = new ProfileVMO();
@@ -56,7 +39,7 @@ namespace fuszerkomat_api.Services
             switch (accType)
             {
                 case "User":
-                    var user = await _userRepo.Query().AsNoTracking().Include(a => a.UserProfile).FirstOrDefaultAsync(a => a.Id == userId);
+                    var user = await _context.Users.AsNoTracking().Include(a => a.UserProfile).FirstOrDefaultAsync(a => a.Id == userId, ct);
                     if (user == null) { throw new NotFoundException(); }
 
                     vmo.UserProfileDataVMO = new OwnUserProfileDataVMO()
@@ -69,12 +52,12 @@ namespace fuszerkomat_api.Services
                     };
                     break;
                 case "Company":
-                    var companyUser = await _userRepo.Query().AsNoTracking()
+                    var companyUser = await _context.Users.AsNoTracking()
                         .Include(a => a.CompanyProfile).ThenInclude(ca => ca.Address)
                         .Include(a => a.CompanyProfile).ThenInclude(cx => cx.Realizations)
                         .Include(a => a.Opinions).ThenInclude(o => o.AuthorUser).ThenInclude(oc => oc.UserProfile)
                         .Include(a => a.Opinions).ThenInclude(at => at.WorkTask).ThenInclude(atc => atc.Category)
-                        .FirstOrDefaultAsync(a => a.Id == userId);
+                        .FirstOrDefaultAsync(a => a.Id == userId, ct);
 
                     if (companyUser == null) { throw new NotFoundException(); }
 
@@ -125,9 +108,10 @@ namespace fuszerkomat_api.Services
 
             return Result<ProfileVMO>.Ok(data: vmo, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
         }
+
         public async Task<Result<CompanyProfileVMO>> GetCompanyProfileAsync(string id, CancellationToken ct)
         {
-            var companyData = await _userRepo.Query().AsNoTracking()
+            var companyData = await _context.Users.AsNoTracking()
                 .Include(u => u.CompanyProfile).ThenInclude(uc => uc.Address)
                 .Include(u => u.CompanyProfile).ThenInclude(cp => cp.Realizations)
                 .Include(u => u.Opinions).ThenInclude(o => o.AuthorUser).ThenInclude(a => a.UserProfile)
@@ -182,12 +166,13 @@ namespace fuszerkomat_api.Services
 
             return Result<CompanyProfileVMO>.Ok(data: vmo, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
         }
+
         public async Task<Result> UpdateCompanyInfrormation(string userId, CompanyProfileInfoVM model, CancellationToken ct)
         {
-            var user = await _userRepo.Query()
-    .Include(a => a.CompanyProfile).ThenInclude(a => a.Address)
-    .Include(a => a.CompanyProfile).ThenInclude(a => a.Realizations)
-    .FirstOrDefaultAsync(a => a.Id == userId);
+            var user = await _context.Users
+                .Include(a => a.CompanyProfile).ThenInclude(a => a.Address)
+                .Include(a => a.CompanyProfile).ThenInclude(a => a.Realizations)
+                .FirstOrDefaultAsync(a => a.Id == userId, ct);
 
             if (user == null)
             {
@@ -275,15 +260,15 @@ namespace fuszerkomat_api.Services
             if (user.CompanyProfile == null)
                 user.CompanyProfile = newCompanyInfo;
 
-            _userRepo.Update(user);
-            await _uow.SaveChangesAsync(ct);
+            _context.Users.Update(user);
+            await _context.SaveChangesAsync(ct);
 
             return Result.Ok(null, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
         }
 
         public async Task<Result> UpdateUserInformation(string userId, UserProfileInfoVM model, CancellationToken ct)
         {
-            var user = await _userRepo.Query().Include(a => a.UserProfile).FirstOrDefaultAsync(a => a.Id == userId);
+            var user = await _context.Users.Include(a => a.UserProfile).FirstOrDefaultAsync(a => a.Id == userId, ct);
             if (user == null)
             {
                 throw new NotFoundException(logData: userId);
@@ -312,8 +297,8 @@ namespace fuszerkomat_api.Services
             if (user.UserProfile is null)
                 user.UserProfile = profile;
 
-            _userRepo.Update(user);
-            await _uow.SaveChangesAsync(ct);
+            _context.Users.Update(user);
+            await _context.SaveChangesAsync(ct);
 
             return Result.Ok(null, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
         }
@@ -322,25 +307,30 @@ namespace fuszerkomat_api.Services
         {
             var filesToDelete = new List<(string folder, string url)>();
 
-            await _uow.ExecuteInTransactionAsync(async innerCt =>
+            var strategy = _context.Database.CreateExecutionStrategy();
+            await strategy.ExecuteAsync(async () =>
             {
-                var user = await _userRepo.Query()
+                filesToDelete.Clear();
+
+                await using var transaction = await _context.Database.BeginTransactionAsync(ct);
+
+                var user = await _context.Users
                     .Include(u => u.UserProfile)
                     .Include(u => u.CompanyProfile)!.ThenInclude(cp => cp.Realizations)
-                    .FirstOrDefaultAsync(u => u.Id == userId, innerCt);
+                    .FirstOrDefaultAsync(u => u.Id == userId, ct);
 
                 if (user is null)
                     throw new NotFoundException(logData: new { userId });
 
                 var ip = _http.HttpContext?.Connection?.RemoteIpAddress?.ToString() ?? "unknown";
-                await _tokenService.RevokeAllForUserAsync(userId, ip, innerCt);
+                await _tokenService.RevokeAllForUserAsync(userId, ip, ct);
 
-                await _opinionRepo.Query().Where(o => o.AuthorUserId == userId).ExecuteDeleteAsync(innerCt);
-                await _opinionRepo.Query().Where(o => o.CompanyId == userId).ExecuteDeleteAsync(innerCt);
-                await _appRepo.Query().Where(a => a.CompanyUserId == userId).ExecuteDeleteAsync(innerCt);
-                await _taskRepo.Query().Where(t => t.CreatedByUserId == userId).ExecuteDeleteAsync(innerCt);
+                await _context.Opinions.Where(o => o.AuthorUserId == userId).ExecuteDeleteAsync(ct);
+                await _context.Opinions.Where(o => o.CompanyId == userId).ExecuteDeleteAsync(ct);
+                await _context.TaskApplications.Where(a => a.CompanyUserId == userId).ExecuteDeleteAsync(ct);
+                await _context.WorkTasks.Where(t => t.CreatedByUserId == userId).ExecuteDeleteAsync(ct);
 
-                await DeleteUserConversationsAsync(userId, innerCt);
+                await DeleteUserConversationsAsync(userId, ct);
 
                 if (!string.IsNullOrWhiteSpace(user.UserProfile?.Img) &&
                     !string.Equals(user.UserProfile.Img, "/users/base-img.png", StringComparison.OrdinalIgnoreCase))
@@ -369,9 +359,11 @@ namespace fuszerkomat_api.Services
                     }
                 }
 
-                _userRepo.Delete(user);
+                _context.Users.Remove(user);
+                await _context.SaveChangesAsync(ct);
 
-            }, ct);
+                await transaction.CommitAsync(ct);
+            });
 
             foreach (var (folder, url) in filesToDelete)
             {

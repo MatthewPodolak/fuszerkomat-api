@@ -2,7 +2,6 @@
 using fuszerkomat_api.Data.Models;
 using fuszerkomat_api.Data.Models.Chat;
 using fuszerkomat_api.Interfaces;
-using fuszerkomat_api.Repo;
 using fuszerkomat_api.VMO;
 using Microsoft.EntityFrameworkCore;
 using MongoDB.Bson;
@@ -13,22 +12,23 @@ namespace fuszerkomat_api.Services
 {
     public class ChatService : IChatService
     {
-        private readonly IRepository<AppUser> _userRepo;
-        private readonly IRepository<WorkTask> _workTaskRepo;
+        private readonly AppDbContext _context;
+
         private readonly ChatCollections _chat;
         private readonly ILogger<IChatService> _logger;
         private readonly IHttpContextAccessor _http;
-        public ChatService(IRepository<AppUser> userRepo, IRepository<WorkTask> workTaskRepo, ChatCollections chat, ILogger<IChatService> logger, IHttpContextAccessor http)
+
+        public ChatService(AppDbContext context, ChatCollections chat, ILogger<IChatService> logger, IHttpContextAccessor http)
         {
-            _userRepo = userRepo;
-            _workTaskRepo = workTaskRepo;
+            _context = context;
             _chat = chat;
             _logger = logger;
             _http = http;
         }
+
         public async Task<Result<List<ChatVMO>>> GetChatsAsync(string userId, CancellationToken ct)
         {
-            var user = await _userRepo.Query().AsNoTracking().Select(u => new { u.Id, u.AccountType }).FirstOrDefaultAsync(a => a.Id == userId, ct);
+            var user = await _context.Users.AsNoTracking().Select(u => new { u.Id, u.AccountType }).FirstOrDefaultAsync(a => a.Id == userId, ct);
             if (user == null)
             {
                 throw new NotFoundException(logData: new { userId });
@@ -68,7 +68,7 @@ namespace fuszerkomat_api.Services
 
             if (user.AccountType == AccountType.User)
             {
-                counterpartData = await _userRepo.Query()
+                counterpartData = await _context.Users
                     .AsNoTracking()
                     .Where(u => counterpartIds.Contains(u.Id) && u.AccountType == AccountType.Company)
                     .Include(u => u.CompanyProfile)
@@ -82,7 +82,7 @@ namespace fuszerkomat_api.Services
             }
             else
             {
-                counterpartData = await _userRepo.Query()
+                counterpartData = await _context.Users
                     .AsNoTracking()
                     .Where(u => counterpartIds.Contains(u.Id) && u.AccountType == AccountType.User)
                     .Include(u => u.UserProfile)
@@ -94,7 +94,6 @@ namespace fuszerkomat_api.Services
                         u.UserProfile!.Img))
                     .ToListAsync(ct);
             }
-
 
             var counterpartDict = counterpartData.ToDictionary(x => x.Id, x => x);
             var convoIds = convos.Select(c => c.Id).ToList();
@@ -128,7 +127,7 @@ namespace fuszerkomat_api.Services
             var taskDict = new Dictionary<int, TaskChatVMO>();
             if (taskIds.Count > 0)
             {
-                var tasks = await _workTaskRepo.Query()
+                var tasks = await _context.WorkTasks
                     .AsNoTracking().Include(a => a.Applications)
                     .Where(t => taskIds.Contains(t.Id))
                     .Select(t => new TaskChatVMO

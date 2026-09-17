@@ -3,7 +3,6 @@ using fuszerkomat_api.Data.Models;
 using fuszerkomat_api.Data.Models.Token;
 using fuszerkomat_api.Helpers;
 using fuszerkomat_api.Interfaces;
-using fuszerkomat_api.Repo;
 using fuszerkomat_api.VMO;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -18,18 +17,18 @@ namespace fuszerkomat_api.Services
 {
     public class TokenService : ITokenService
     {
+        private readonly AppDbContext _context;
+
         private readonly IConfiguration _cfg;
         private readonly UserManager<AppUser> _userMgr;
-        private readonly IRepository<RefreshToken> _rtRepo;
-        private readonly IUnitOfWork _uow;
         private readonly ILogger<ITokenService> _logger;
         private readonly IHttpContextAccessor _http;
-        public TokenService(IConfiguration cfg, UserManager<AppUser> userMgr, IRepository<RefreshToken> rtRepo, IUnitOfWork uow, ILogger<ITokenService> logger, IHttpContextAccessor http)
+
+        public TokenService(AppDbContext context, IConfiguration cfg, UserManager<AppUser> userMgr, ILogger<ITokenService> logger, IHttpContextAccessor http)
         {
+            _context = context;
             _cfg = cfg;
             _userMgr = userMgr;
-            _rtRepo = rtRepo;
-            _uow = uow;
             _logger = logger;
             _http = http;
         }
@@ -68,7 +67,7 @@ namespace fuszerkomat_api.Services
             var refreshDays = int.Parse(jwt["RefreshTokenDays"] ?? "7");
             var refreshExp = DateTime.UtcNow.AddDays(refreshDays);
 
-            await _rtRepo.AddAsync(new RefreshToken
+            await _context.RefreshTokens.AddAsync(new RefreshToken
             {
                 TokenHash = hash,
                 UserId = user.Id,
@@ -78,7 +77,7 @@ namespace fuszerkomat_api.Services
                 UserAgent = userAgent
             }, ct);
 
-            await _uow.SaveChangesAsync(ct);
+            await _context.SaveChangesAsync(ct);
 
             var res = new AuthTokenVMO
             {
@@ -96,7 +95,7 @@ namespace fuszerkomat_api.Services
             var jwt = _cfg.GetSection("AuthSettingsJwt");
             var hash = TokenHashing.Hash(rawRefreshToken, jwt["RefreshTokenHashSecret"]!);
 
-            var existing = await _rtRepo.Query()
+            var existing = await _context.RefreshTokens
                 .Include(r => r.User)
                 .SingleOrDefaultAsync(r => r.TokenHash == hash, ct);
 
@@ -122,7 +121,7 @@ namespace fuszerkomat_api.Services
             var refreshDays = int.Parse(jwt["RefreshTokenDays"] ?? "7");
             var newExp = DateTime.UtcNow.AddDays(refreshDays);
 
-            await _rtRepo.AddAsync(new RefreshToken
+            await _context.RefreshTokens.AddAsync(new RefreshToken
             {
                 TokenHash = newHash,
                 UserId = existing.UserId,
@@ -132,7 +131,7 @@ namespace fuszerkomat_api.Services
                 UserAgent = userAgent
             }, ct);
 
-            await _uow.SaveChangesAsync(ct);
+            await _context.SaveChangesAsync(ct);
 
             var created = await CreateTokensAsync(existing.User, ip, userAgent, ct);
 
@@ -148,7 +147,7 @@ namespace fuszerkomat_api.Services
 
         public async Task RevokeAllForUserAsync(string userId, string ip, CancellationToken ct = default)
         {
-            var active = _rtRepo.Query()
+            var active = _context.RefreshTokens
                     .Where(r => r.UserId == userId && r.RevokedAtUtc == null && r.ExpiresAtUtc > DateTime.UtcNow);
 
             await active.ForEachAsync(r =>
@@ -157,8 +156,7 @@ namespace fuszerkomat_api.Services
                 r.RevokedByIp = ip;
             }, ct);
 
-            await _uow.SaveChangesAsync(ct);
+            await _context.SaveChangesAsync(ct);
         }
     }
-
 }
