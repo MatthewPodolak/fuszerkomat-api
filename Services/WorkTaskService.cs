@@ -3,7 +3,6 @@ using fuszerkomat_api.Data.Models;
 using fuszerkomat_api.Grpc;
 using fuszerkomat_api.Helpers;
 using fuszerkomat_api.Interfaces;
-using fuszerkomat_api.Repo;
 using fuszerkomat_api.VM;
 using fuszerkomat_api.VMO;
 using Grpc.Core;
@@ -21,26 +20,18 @@ namespace fuszerkomat_api.Services
 {
     public class WorkTaskService : IWorkTaskService
     {
-        private readonly IRepository<AppUser> _userRepo;
-        private readonly IRepository<WorkTask> _workTaskRepo;
-        private readonly IRepository<Category> _categoryRepo;
-        private readonly IRepository<TaskApplication> _applicationRepo;
-        private readonly IRepository<Data.Models.Tag> _tagRepo;
-        private readonly IUnitOfWork _uow;
+        private readonly AppDbContext _context;
+
         private readonly Chat.ChatClient _chatClient;
         private readonly IChatService _chatService;
 
         private readonly ILogger<IWorkTaskService> _logger;
         private readonly IHttpContextAccessor _http;
 
-        public WorkTaskService(IRepository<AppUser> userRepo, IRepository<WorkTask> workTaskRepo, IRepository<Category> categoryRepo, IRepository<Data.Models.Tag> tagRepo, IRepository<TaskApplication> applicationRepo, IUnitOfWork uow, Chat.ChatClient chatClient, IChatService chatService, ILogger<IWorkTaskService> logger, IHttpContextAccessor http)
+        public WorkTaskService(AppDbContext context, Chat.ChatClient chatClient, IChatService chatService, ILogger<IWorkTaskService> logger, IHttpContextAccessor http)
         {
-            _userRepo = userRepo;
-            _workTaskRepo = workTaskRepo;
-            _categoryRepo = categoryRepo;
-            _tagRepo = tagRepo;
-            _applicationRepo = applicationRepo;
-            _uow = uow;
+            _context = context;
+
             _chatClient = chatClient;
             _chatService = chatService;
             _logger = logger;
@@ -49,19 +40,19 @@ namespace fuszerkomat_api.Services
 
         public async Task<Result> PublishAsync(PublishWorkTaskVM model, string userId, CancellationToken ct)
         {
-            var user = await _userRepo.GetByIdAsync(userId, ct);
+            var user = await _context.Users.FindAsync(new object[] { userId }, ct);
             if (user == null)
             {
                 throw new NotFoundException(message: "User not found", logData: new { userId });
             }
 
-            var category = _categoryRepo.Query().FirstOrDefault(a => a.CategoryType == model.CategoryType);
+            var category = _context.Categories.FirstOrDefault(a => a.CategoryType == model.CategoryType);
             if (category == null)
             {
                 throw new ValidationException(message: $"Category {model.CategoryType} does not exists.");
             }
 
-            var tags = _tagRepo.Query().Where(a => model.Tags.Contains(a.TagType)).ToList();
+            var tags = _context.Tags.Where(a => model.Tags.Contains(a.TagType)).ToList();
             if (tags.Count != model.Tags.Count)
             {
                 throw new ValidationException(message: "One or more tags are invalid.");
@@ -120,21 +111,21 @@ namespace fuszerkomat_api.Services
                 }
             }
 
-            await _workTaskRepo.AddAsync(newWorkTask, ct);
-            await _uow.SaveChangesAsync(ct);
+            await _context.WorkTasks.AddAsync(newWorkTask, ct);
+            await _context.SaveChangesAsync(ct);
 
             return Result.Ok(null, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
         }
 
         public async Task<Result<List<WorkTaskPreviewVMO>>> GetWorkTasksAsync(WorkTaskFilterVM filter, string userId, CancellationToken ct)
         {
-            var askingUser = await _userRepo.Query().Include(a => a.CompanyProfile).ThenInclude(ac => ac.Address).FirstOrDefaultAsync(a => a.Id == userId, ct);
+            var askingUser = await _context.Users.Include(a => a.CompanyProfile).ThenInclude(ac => ac.Address).FirstOrDefaultAsync(a => a.Id == userId, ct);
             if (askingUser == null)
             {
                 throw new NotFoundException(logData: new { userId });
             }
 
-            var query = _workTaskRepo.Query().Where(a => a.Status == Data.Models.Status.Open);
+            var query = _context.WorkTasks.Where(a => a.Status == Data.Models.Status.Open);
 
             if (filter.Tags != null && filter.Tags.Any())
             {
@@ -164,12 +155,10 @@ namespace fuszerkomat_api.Services
                     .ToList();
 
                 query = query.Where(w => nearbyIds.Contains(w.Id));
-
             }
 
             var totalCount = await query.CountAsync(ct);
 
-            //TODO add nearest (loc.) sort.
             switch (filter.SortOptions)
             {
                 case SortOptions.LowestApplicants:
@@ -192,7 +181,6 @@ namespace fuszerkomat_api.Services
                     query = query.OrderByDescending(a => a.ExpiresAt);
                     break;
             }
-
 
             var res = await query.Skip((filter.PageSize * (filter.Page - 1))).Take(filter.PageSize).Select(a => new WorkTaskPreviewVMO
             {
@@ -244,7 +232,7 @@ namespace fuszerkomat_api.Services
 
         public async Task<Result<UserWorkTaskVMO>> GetWorkTaskForUserAsync(int id, string userId, CancellationToken ct)
         {
-            var workTask = await _workTaskRepo.Query()
+            var workTask = await _context.WorkTasks
                         .AsNoTracking()
                         .Include(a => a.CreatedByUser).ThenInclude(u => u.UserProfile)
                         .Include(a => a.Applications).ThenInclude(ap => ap.CompanyUser).ThenInclude(cu => cu.CompanyProfile)
@@ -298,7 +286,7 @@ namespace fuszerkomat_api.Services
 
         public async Task<Result<CompanyWorkTaskVMO>> GetWorkTaskForCompanyAsync(int id, string userId, CancellationToken ct)
         {
-            var workTask = await _workTaskRepo.Query().AsNoTracking()
+            var workTask = await _context.WorkTasks.AsNoTracking()
                             .Include(a => a.CreatedByUser).ThenInclude(u => u.UserProfile)
                             .Include(a => a.Applications).ThenInclude(ap => ap.CompanyUser).ThenInclude(cu => cu.CompanyProfile)
                             .Include(a => a.Category)
@@ -351,7 +339,7 @@ namespace fuszerkomat_api.Services
 
         public async Task<Result<ApplyVMO>> ApplyForWorkTaskAsync(ApplyToWorkTaskVM model, string companyId, CancellationToken ct)
         {
-            var workTask = await _workTaskRepo.Query().Include(a => a.CreatedByUser).Include(a => a.Applications).ThenInclude(ap => ap.CompanyUser).FirstOrDefaultAsync(a => a.Id == model.WorkTaskId, ct);
+            var workTask = await _context.WorkTasks.Include(a => a.CreatedByUser).Include(a => a.Applications).ThenInclude(ap => ap.CompanyUser).FirstOrDefaultAsync(a => a.Id == model.WorkTaskId, ct);
             if (workTask == null)
             {
                 throw new NotFoundException(logData: new { companyId, model });
@@ -406,7 +394,7 @@ namespace fuszerkomat_api.Services
             };
 
             workTask.Applications.Add(newApplication);
-            await _uow.SaveChangesAsync(ct);
+            await _context.SaveChangesAsync(ct);
 
             var vmo = new ApplyVMO() { ConversationId = chatResp.ConversationId };
             return Result<ApplyVMO>.Ok(data: vmo, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
@@ -414,7 +402,7 @@ namespace fuszerkomat_api.Services
 
         public async Task<Result<List<UserWorkTaskPreviewVMO>>> GetOwnAsync(OwnWorkTasksFilterVM filters, string userId, CancellationToken ct)
         {
-            var query = _workTaskRepo.Query().Include(a => a.Category).Include(a => a.Tags).Include(t => t.Applications).Where(t => t.CreatedByUserId == userId);
+            var query = _context.WorkTasks.Include(a => a.Category).Include(a => a.Tags).Include(t => t.Applications).Where(t => t.CreatedByUserId == userId);
 
             if (filters.Statuses is { Count: > 0 })
             {
@@ -457,7 +445,7 @@ namespace fuszerkomat_api.Services
 
         public async Task<Result> ChangeApplicationStatusAsync(ChangeApplicationStatusVM model, string userId, CancellationToken ct)
         {
-            var workTask = await _workTaskRepo.Query().Include(a => a.Applications)
+            var workTask = await _context.WorkTasks.Include(a => a.Applications)
                     .FirstOrDefaultAsync(a => a.CreatedByUserId == userId && a.Id == model.WorkTaskId, ct);
 
             if (workTask == null)
@@ -496,13 +484,13 @@ namespace fuszerkomat_api.Services
                     break;
             }
 
-            await _uow.SaveChangesAsync(ct);
+            await _context.SaveChangesAsync(ct);
             return Result.Ok(errors: null, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
         }
 
         public async Task<Result> CompleteRealization(CompleteRealizationVM model, string userId, CancellationToken ct)
         {
-            var workTask = await _workTaskRepo.Query()
+            var workTask = await _context.WorkTasks
                     .Include(a => a.Applications).ThenInclude(a => a.CompanyUser).ThenInclude(ac => ac.CompanyProfile)
                     .FirstOrDefaultAsync(a => a.Id == model.WorkTaskId, ct);
 
@@ -519,14 +507,14 @@ namespace fuszerkomat_api.Services
 
             application.CompanyUser.CompanyProfile.RealizedTasks += 1;
             workTask.Status = Data.Models.Status.Completed;
-            await _uow.SaveChangesAsync(ct);
+            await _context.SaveChangesAsync(ct);
 
             return Result.Ok(errors: null, traceId: _http.HttpContext?.TraceIdentifier ?? string.Empty);
         }
 
         public async Task<Result<List<CompanyTaskApplyVMO>>> GetCompanyAppliedTasksAsync(CompanyAppliedFilterVM filter, string id, CancellationToken ct)
         {
-            var query = _applicationRepo.Query().AsNoTracking()
+            var query = _context.TaskApplications.AsNoTracking()
                                 .Include(ac => ac.WorkTask).ThenInclude(aca => aca.Category)
                                 .Include(at => at.WorkTask).ThenInclude(ata => ata.Tags)
                                 .Where(a => a.CompanyUserId == id);
@@ -539,7 +527,7 @@ namespace fuszerkomat_api.Services
             var totalCount = await query.CountAsync(ct);
             var pageCount = (int)Math.Ceiling(totalCount / (double)filter.PageSize);
 
-            var items = await query.Skip((filter.PageSize * (filter.Page - 1))).Take(filter.PageSize).ToListAsync();
+            var items = await query.Skip((filter.PageSize * (filter.Page - 1))).Take(filter.PageSize).ToListAsync(ct);
             var vmo = items.Select(a => new CompanyTaskApplyVMO()
             {
                 Category = a.WorkTask.Category.CategoryType,
@@ -551,7 +539,6 @@ namespace fuszerkomat_api.Services
                 Location = a.WorkTask.Location ?? "Polska",
                 Tags = a.WorkTask.Tags.Select(a => a.TagType).ToList(),
             }).ToList();
-
 
             var pagination = new Pagination()
             {

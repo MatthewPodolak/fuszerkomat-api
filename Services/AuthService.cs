@@ -1,10 +1,10 @@
 ﻿using fuszerkomat_api.Data;
 using fuszerkomat_api.Data.Models;
 using fuszerkomat_api.Interfaces;
-using fuszerkomat_api.Repo;
 using fuszerkomat_api.VM;
 using fuszerkomat_api.VMO;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
 using System.Security.Claims;
 using static fuszerkomat_api.Helpers.DomainExceptions;
@@ -13,19 +13,21 @@ namespace fuszerkomat_api.Services
 {
     public class AuthService : IAuthService
     {
+        private readonly AppDbContext _context;
+
         private readonly UserManager<AppUser> _userMgr;
         private readonly SignInManager<AppUser> _signInMgr;
         private readonly ITokenService _tokens;
-        private readonly IUnitOfWork _uow;
 
         private readonly ILogger<IAuthService> _logger;
         private readonly IHttpContextAccessor _http;
-        public AuthService(UserManager<AppUser> userMgr, SignInManager<AppUser> signInMgr, ITokenService tokens, IUnitOfWork uow, ILogger<IAuthService> logger, IHttpContextAccessor http)
+
+        public AuthService(AppDbContext context, UserManager<AppUser> userMgr, SignInManager<AppUser> signInMgr, ITokenService tokens, ILogger<IAuthService> logger, IHttpContextAccessor http)
         {
+            _context = context;
             _userMgr = userMgr;
             _signInMgr = signInMgr;
             _tokens = tokens;
-            _uow = uow;
             _logger = logger;
             _http = http;
         }
@@ -132,8 +134,11 @@ namespace fuszerkomat_api.Services
 
             Result<AuthTokenVMO>? final = null;
 
-            await _uow.ExecuteInTransactionAsync(async innerCt =>
+            var strategy = _context.Database.CreateExecutionStrategy();
+            await strategy.ExecuteAsync(async () =>
             {
+                await using var transaction = await _context.Database.BeginTransactionAsync(ct);
+
                 var create = await _userMgr.CreateAsync(user, model.Password);
                 if (!create.Succeeded)
                     throw new InvalidOperationException(string.Join(" | ", create.Errors.Select(e => e.Description)));
@@ -144,9 +149,10 @@ namespace fuszerkomat_api.Services
 
                 var ip = _http.HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "unknown";
                 var ua = _http.HttpContext?.Request.Headers.UserAgent.ToString();
-                final = await _tokens.CreateTokensAsync(user, ip, ua, innerCt);
+                final = await _tokens.CreateTokensAsync(user, ip, ua, ct);
 
-            }, ct);
+                await transaction.CommitAsync(ct);
+            });
 
             return final!;
         }
